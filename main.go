@@ -47,7 +47,9 @@ func (c *CmdLine) AddChar(r rune) {
 
 func (c *CmdLine) DelChar() {
 	//TODO cursor, delete key
-	c.Text = c.Text[:len(c.Text)-1]
+	if len(c.Text) > 0 {
+		c.Text = c.Text[:len(c.Text)-1]
+	}
 }
 
 // Draw a status message over the commandbar.
@@ -106,7 +108,9 @@ func main() {
 			case tb.KeyEnter:
 				if commandmode { // Finish command
 					commandmode = false
-					docommand(cmdline.Text[1:])
+					if len(cmdline.Text) > 1 {
+						docommand(cmdline.Text[1:])
+					}
 				}
 			case tb.KeyBackspace, tb.KeyBackspace2:
 				if commandmode {
