@@ -1,28 +1,10 @@
 package main
 
-import "fmt"
 import "os"
 import "log"
 
 import sp "github.com/op/go-libspotify/spotify"
 import tb "github.com/nsf/termbox-go"
-
-func printtb(x, y int, fg, bg tb.Attribute, msg string) {
-	for _, c := range msg {
-		tb.SetCell(x, y, c, fg, bg)
-		x++
-	}
-}
-
-// Prints in row y with last char of msg at x.
-// Useful for right-aligning
-func printtbrev(x, y int, fg, bg tb.Attribute, msg string) {
-	i := len(msg)
-	for _, c := range msg {
-		tb.SetCell(x-i, y, c, fg, bg)
-		i--
-	}
-}
 
 type CmdLine struct {
 	Text    []rune
@@ -63,7 +45,38 @@ func drawstatus(msg string) {
 	tb.Flush()
 }
 
-func redraw() {
+// A status message and Termbox color attribute. For display in the top right
+type StatusMsg struct {
+	Msg    string
+	Colour tb.Attribute
+}
+
+// Maps between spotify connectionstates to Statusmsg structs
+var ConnstateMsg = map[sp.ConnectionState]StatusMsg{
+	sp.ConnectionStateLoggedOut:    StatusMsg{"Logged Out", tb.ColorRed},
+	sp.ConnectionStateLoggedIn:     StatusMsg{"Logged In", tb.ColorGreen},
+	sp.ConnectionStateDisconnected: StatusMsg{"Disconnected", tb.ColorRed},
+	sp.ConnectionStateUndefined:    StatusMsg{"???", tb.ColorWhite},
+	sp.ConnectionStateOffline:      StatusMsg{"Offline", tb.ColorRed},
+}
+
+type Mode int
+
+const (
+	Normal Mode = iota
+	Command
+	Search
+)
+
+type gspot struct {
+	session *sp.Session
+	cmdline CmdLine
+	quit    bool
+	logger  *log.Logger
+	mode    Mode
+}
+
+func (g *gspot) redraw() {
 	tb.Flush()
 	x, _ := tb.Size()
 	// Draw top bar
@@ -71,22 +84,66 @@ func redraw() {
 		tb.SetCell(i, 0, ' ', tb.ColorDefault, tb.ColorBlack)
 	}
 	printtb(0, 0, tb.AttrBold, tb.ColorBlack, "GSPOT v0.0.1")
-	printtbrev(x, 0, tb.ColorGreen, tb.ColorBlack, "Online")
-	// Draw bottom bar
+
+	// Get the StatusMsg (message and color) for current spotify session state
+	// and print it at the top right
+	statusmsg := ConnstateMsg[g.session.ConnectionState()]
+	printtbrev(x, 0, statusmsg.Colour, tb.ColorBlack, statusmsg.Msg)
 
 	//Draw Cmdline
-	cmdline.Draw()
+	g.cmdline.Draw()
 	tb.Flush()
 }
 
-func docommand(cmd []rune) {
+func (g *gspot) docommand(cmd []rune) {
 	if cmd[0] == 'q' {
-		quit = true
+		g.quit = true
 	}
 }
 
-var quit = false
-var cmdline CmdLine
+func (g *gspot) run() {
+	for {
+		// Main run loop. Switch on termbox events (and later stuff from
+		// audio?)
+		switch ev := tb.PollEvent(); ev.Type {
+		case tb.EventKey:
+			switch ev.Key {
+			case tb.KeyEnter:
+				if g.mode == Command { // Finish command
+					g.mode = Normal
+					if len(g.cmdline.Text) > 1 {
+						g.docommand(g.cmdline.Text[1:])
+					}
+				}
+			case tb.KeyBackspace, tb.KeyBackspace2:
+				if g.mode == Command {
+					g.cmdline.DelChar()
+				}
+			default:
+				if g.mode == Command && ev.Ch != 0 {
+					g.cmdline.AddChar(ev.Ch)
+				} else {
+					// run keybinding TODO: make more configurable
+					switch ev.Ch {
+					case ':':
+						g.mode = Command
+						g.cmdline.AddChar(':')
+					case 'q':
+						//Quit
+						g.quit = true
+					}
+				}
+			}
+
+		case tb.EventResize:
+			g.redraw()
+		}
+		g.redraw()
+		if g.quit {
+			break
+		}
+	}
+}
 
 func main() {
 	logger := log.New(os.Stdout, "[>] ", log.Lshortfile)
@@ -95,68 +152,22 @@ func main() {
 		logger.Panic(err)
 	}
 	defer tb.Close()
-	commandmode := false
-	redraw()
-	drawstatus("Welcome")
-
-	for {
-		// Main run loop. Switch on termbox events (and later stuff from
-		// audio?)
-		switch ev := tb.PollEvent(); ev.Type {
-		case tb.EventKey:
-			switch ev.Key {
-			case tb.KeyEnter:
-				if commandmode { // Finish command
-					commandmode = false
-					if len(cmdline.Text) > 1 {
-						docommand(cmdline.Text[1:])
-					}
-				}
-			case tb.KeyBackspace, tb.KeyBackspace2:
-				if commandmode {
-					cmdline.DelChar()
-				}
-			default:
-				if commandmode && ev.Ch != 0 {
-					cmdline.AddChar(ev.Ch)
-				} else {
-					// run keybinding TODO: make more configurable
-					switch ev.Ch {
-					case ':':
-						commandmode = true
-						cmdline.AddChar(':')
-					case 'q':
-						//Quit
-						quit = true
-					}
-				}
-			}
-
-		case tb.EventResize:
-			redraw()
-		}
-		redraw()
-		if quit {
-			break
-		}
-	}
-}
-
-func spotify() {
-	conf := sp.Config{
-		appkey,
-		"Gspot",
-		"",
-		"",
-		"",
-		false,
-		true,
-		true,
-		nil,
-	}
-	_, err := sp.NewSession(&conf)
+	session, err := sp.NewSession(&sp.Config{
+		ApplicationKey:   appkey,
+		ApplicationName:  "GSpot",
+		SettingsLocation: "tmp",
+		AudioConsumer:    nil,
+	})
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		logger.Fatal(err)
 	}
+	gs := gspot{
+		logger:  logger,
+		quit:    false,
+		session: session,
+		cmdline: CmdLine{},
+		mode:    Normal,
+	}
+	gs.redraw()
+	gs.run()
 }
