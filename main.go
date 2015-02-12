@@ -2,6 +2,7 @@ package main
 
 import "os"
 import "log"
+import "strings"
 
 import sp "github.com/op/go-libspotify/spotify"
 import tb "github.com/nsf/termbox-go"
@@ -9,16 +10,23 @@ import tb "github.com/nsf/termbox-go"
 type CmdLine struct {
 	Text    []rune
 	history [][]rune
+	status  string
 }
 
 func (c *CmdLine) Draw() {
 	x, y := tb.Size()
-	//Print our command line to the bottom of the window
-	for i, r := range c.Text {
-		tb.SetCell(i, y-1, r, tb.ColorWhite, tb.ColorDefault)
-	}
-	for i := len(c.Text); i < x; i++ {
+	// First clear entire row
+	for i := 0; i < x; i++ {
 		tb.SetCell(i, y-1, ' ', tb.ColorWhite, tb.ColorDefault)
+	}
+	// If there is a status message, draw it, otherwise draw the current
+	// command in c.Text
+	if c.status != "" {
+		printtb(0, y-1, tb.ColorRed, tb.ColorDefault, c.status)
+	} else {
+		for i, r := range c.Text {
+			tb.SetCell(i, y-1, r, tb.ColorWhite, tb.ColorDefault)
+		}
 	}
 }
 
@@ -34,15 +42,11 @@ func (c *CmdLine) DelChar() {
 	}
 }
 
-// Draw a status message over the commandbar.
-// Persists until next screen redraw
-func drawstatus(msg string) {
-	x, y := tb.Size()
-	for i := 0; i < x; i++ {
-		tb.SetCell(i, y-1, ' ', tb.ColorWhite, tb.ColorBlack)
-	}
-	printtb(0, y-1, tb.ColorRed, tb.ColorBlack, msg)
-	tb.Flush()
+// Should be run after command has. Empty current command buffer and push it to
+// history
+func (c *CmdLine) Push() {
+	c.history = append(c.history, c.Text)
+	c.Text = nil
 }
 
 // A status message and Termbox color attribute. For display in the top right
@@ -95,9 +99,24 @@ func (g *gspot) redraw() {
 	tb.Flush()
 }
 
-func (g *gspot) docommand(cmd []rune) {
-	if cmd[0] == 'q' {
+func (g *gspot) docommand(cmd string, args []string) {
+	switch cmd {
+	case "q", "quit":
 		g.quit = true
+	case "login":
+		if len(args) != 2 {
+			g.cmdline.status = "Usage: /login <username> <password>"
+			return
+		}
+		err := g.session.Login(sp.Credentials{
+			Username: args[0],
+			Password: args[1],
+		}, false) // Don't remember for now, TODO: this
+		if err != nil {
+			g.cmdline.status = err.Error()
+		}
+	default:
+		g.cmdline.status = "No such command"
 	}
 }
 
@@ -112,12 +131,18 @@ func (g *gspot) run() {
 				if g.mode == Command { // Finish command
 					g.mode = Normal
 					if len(g.cmdline.Text) > 1 {
-						g.docommand(g.cmdline.Text[1:])
+						banana := strings.Split(string(g.cmdline.Text[1:]), " ")
+						g.docommand(banana[0], banana[1:])
+						g.cmdline.Push()
 					}
 				}
 			case tb.KeyBackspace, tb.KeyBackspace2:
 				if g.mode == Command {
 					g.cmdline.DelChar()
+				}
+			case tb.KeySpace:
+				if g.mode == Command {
+					g.cmdline.AddChar(' ')
 				}
 			default:
 				if g.mode == Command && ev.Ch != 0 {
@@ -127,6 +152,7 @@ func (g *gspot) run() {
 					switch ev.Ch {
 					case ':':
 						g.mode = Command
+						g.cmdline.status = ""
 						g.cmdline.AddChar(':')
 					case 'q':
 						//Quit
@@ -140,6 +166,8 @@ func (g *gspot) run() {
 		}
 		g.redraw()
 		if g.quit {
+			g.session.Logout()
+			g.session.Close()
 			break
 		}
 	}
