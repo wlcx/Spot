@@ -105,13 +105,24 @@ func (g *gspot) docommand(cmd string, args []string) {
 		g.quit = true
 	case "login":
 		if len(args) != 2 {
-			g.cmdline.status = "Usage: /login <username> <password>"
+			g.cmdline.status = "Usage: :login <username> <password>"
 			return
 		}
 		err := g.session.Login(sp.Credentials{
 			Username: args[0],
 			Password: args[1],
 		}, false) // Don't remember for now, TODO: this
+		if err != nil {
+			g.cmdline.status = err.Error()
+		}
+	case "logout":
+		err := g.session.Logout()
+		if err != nil {
+			g.cmdline.status = err.Error()
+		}
+		// If the user issues a logout command, we assume they want to stay
+		// logged out
+		err = g.session.ForgetMe()
 		if err != nil {
 			g.cmdline.status = err.Error()
 		}
@@ -166,6 +177,7 @@ func (g *gspot) run() {
 		}
 		g.redraw()
 		if g.quit {
+			// Clean up libspotify stuff before we terminate
 			g.session.Logout()
 			g.session.Close()
 			break
