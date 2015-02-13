@@ -82,7 +82,7 @@ type gspot struct {
 
 func (g *gspot) redraw() {
 	tb.Flush()
-	x, _ := tb.Size()
+	x, y := tb.Size()
 	// Draw top bar
 	for i := 0; i <= x; i++ {
 		tb.SetCell(i, 0, ' ', tb.ColorDefault, tb.ColorBlack)
@@ -94,9 +94,29 @@ func (g *gspot) redraw() {
 	statusmsg := ConnstateMsg[g.session.ConnectionState()]
 	printtbrev(x, 0, statusmsg.Colour, tb.ColorBlack, statusmsg.Msg)
 
+	// Draw screen
+	drawbox(0, 1, x, y-2, "Lol")
+
 	//Draw Cmdline
 	g.cmdline.Draw()
 	tb.Flush()
+}
+
+// Draw a box with optional title
+func drawbox(x, y, w, h int, title string) {
+	tb.SetCell(x, y, '┌', tb.ColorWhite, tb.ColorDefault)
+	tb.SetCell(x, y+h-1, '└', tb.ColorWhite, tb.ColorDefault)
+	tb.SetCell(x+w-1, y, '┐', tb.ColorWhite, tb.ColorDefault)
+	tb.SetCell(x+w-1, y+h-1, '┘', tb.ColorWhite, tb.ColorDefault)
+	for i := 1; i < w-1; i++ {
+		tb.SetCell(x+i, y, '─', tb.ColorWhite, tb.ColorDefault)
+		tb.SetCell(x+i, y+h-1, '─', tb.ColorWhite, tb.ColorDefault)
+	}
+	for i := 1; i < h-1; i++ {
+		tb.SetCell(x, y+i, '│', tb.ColorWhite, tb.ColorDefault)
+		tb.SetCell(x+w-1, y+i, '│', tb.ColorWhite, tb.ColorDefault)
+	}
+	printtb(x+1, y, tb.ColorWhite, tb.ColorDefault, "["+title+"]")
 }
 
 func (g *gspot) docommand(cmd string, args []string) {
