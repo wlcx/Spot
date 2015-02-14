@@ -81,7 +81,7 @@ type gspot struct {
 }
 
 func (g *gspot) redraw() {
-	tb.Flush()
+	tb.Clear(tb.ColorWhite, tb.ColorDefault)
 	x, y := tb.Size()
 	// Draw top bar
 	for i := 0; i <= x; i++ {
@@ -95,7 +95,7 @@ func (g *gspot) redraw() {
 	printtbrev(x, 0, statusmsg.Colour, tb.ColorBlack, statusmsg.Msg)
 
 	// Draw screen
-	drawbox(0, 1, x, y-2, "Lol")
+	drawbox(0, 1, x, y-2, "Playlists")
 
 	//Draw Cmdline
 	g.cmdline.Draw()
@@ -171,10 +171,20 @@ func (g *gspot) run() {
 				if g.mode == Command {
 					g.cmdline.DelChar()
 				}
+			case tb.KeyDelete:
+				if g.mode == Command {
+					// TODO: this, requires a cursor
+				}
 			case tb.KeySpace:
 				if g.mode == Command {
 					g.cmdline.AddChar(' ')
 				}
+			case tb.KeyEsc:
+				if g.mode == Command {
+					g.cmdline.Clear()
+				}
+				g.mode = Normal
+
 			default:
 				if g.mode == Command && ev.Ch != 0 {
 					g.cmdline.AddChar(ev.Ch)
