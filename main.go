@@ -3,6 +3,7 @@ package main
 import "os"
 import "log"
 import "strings"
+import "sync"
 
 import sp "github.com/op/go-libspotify/spotify"
 import tb "github.com/nsf/termbox-go"
@@ -158,61 +159,92 @@ func (g *spot) docommand(cmd string, args []string) {
 }
 
 func (g *spot) run() {
+	eventCh := make(chan tb.Event)
+	wg := new(sync.WaitGroup)
+	go func() {
+		wg.Add(1)
+		for {
+			ev := tb.PollEvent()
+			if ev.Type == tb.EventInterrupt {
+				// We use this as a signal to terminate
+				close(eventCh)
+				wg.Done()
+				break
+			}
+			eventCh <- ev
+
+		}
+	}()
+
 	for {
 		// Main run loop. Switch on termbox events (and later stuff from
 		// audio?)
-		switch ev := tb.PollEvent(); ev.Type {
-		case tb.EventKey:
-			switch ev.Key {
-			case tb.KeyEnter:
-				if g.mode == Command { // Finish command
+		select {
+		case ev := <-eventCh:
+			switch ev.Type {
+			case tb.EventKey:
+				switch ev.Key {
+				case tb.KeyEnter:
+					if g.mode == Command { // Finish command
+						g.mode = Normal
+						if len(g.cmdline.Text) > 1 {
+							banana := strings.Split(string(g.cmdline.Text[1:]), " ")
+							g.docommand(banana[0], banana[1:])
+							g.cmdline.Push()
+						}
+					}
+				case tb.KeyBackspace, tb.KeyBackspace2:
+					if g.mode == Command {
+						g.cmdline.DelChar()
+					}
+				case tb.KeyDelete:
+					if g.mode == Command {
+						// TODO: this, requires a cursor
+					}
+				case tb.KeySpace:
+					if g.mode == Command {
+						g.cmdline.AddChar(' ')
+					}
+				case tb.KeyEsc:
+					if g.mode == Command {
+						g.cmdline.Clear()
+					}
 					g.mode = Normal
-					if len(g.cmdline.Text) > 1 {
-						banana := strings.Split(string(g.cmdline.Text[1:]), " ")
-						g.docommand(banana[0], banana[1:])
-						g.cmdline.Push()
-					}
-				}
-			case tb.KeyBackspace, tb.KeyBackspace2:
-				if g.mode == Command {
-					g.cmdline.DelChar()
-				}
-			case tb.KeyDelete:
-				if g.mode == Command {
-					// TODO: this, requires a cursor
-				}
-			case tb.KeySpace:
-				if g.mode == Command {
-					g.cmdline.AddChar(' ')
-				}
-			case tb.KeyEsc:
-				if g.mode == Command {
-					g.cmdline.Clear()
-				}
-				g.mode = Normal
 
-			default:
-				if g.mode == Command && ev.Ch != 0 {
-					g.cmdline.AddChar(ev.Ch)
-				} else {
-					// run keybinding TODO: make more configurable
-					switch ev.Ch {
-					case ':':
-						g.mode = Command
-						g.cmdline.status = ""
-						g.cmdline.AddChar(':')
-					case 'q':
-						//Quit
-						g.quit = true
+				default:
+					if g.mode == Command && ev.Ch != 0 {
+						g.cmdline.AddChar(ev.Ch)
+					} else {
+						// run keybinding TODO: make more configurable
+						switch ev.Ch {
+						case ':':
+							g.mode = Command
+							g.cmdline.status = ""
+							g.cmdline.AddChar(':')
+						case 'q':
+							//Quit
+							g.quit = true
+						}
 					}
 				}
+
+			case tb.EventResize:
+				g.redraw()
 			}
-
-		case tb.EventResize:
-			g.redraw()
+		case err := <-g.session.LoggedInUpdates():
+			if err != nil {
+				g.cmdline.status = err.Error()
+			}
+		case <-g.session.LoggedOutUpdates():
+			g.cmdline.status = "Logged out"
+		case <-g.session.ConnectionStateUpdates():
+			// Do nothing, we just want to trigger a redraw
 		}
 		g.redraw()
 		if g.quit {
+			// Send interrupt event and wait for event goroutine to terminate
+			tb.Interrupt()
+			wg.Wait()
 			// Clean up libspotify stuff before we terminate
 			g.session.Logout()
 			g.session.Close()
