@@ -7,6 +7,9 @@ import "strings"
 import sp "github.com/op/go-libspotify/spotify"
 import tb "github.com/nsf/termbox-go"
 
+// This should be injected at compile time by a script
+var version string
+
 type CmdLine struct {
 	Text    []rune
 	history [][]rune
@@ -49,6 +52,9 @@ func (c *CmdLine) Push() {
 	c.Text = nil
 }
 
+func (c *CmdLine) Clear() {
+	c.Text = nil
+}
 // A status message and Termbox color attribute. For display in the top right
 type StatusMsg struct {
 	Msg    string
@@ -72,22 +78,22 @@ const (
 	Search
 )
 
-type gspot struct {
-	session *sp.Session
-	cmdline CmdLine
-	quit    bool
-	logger  *log.Logger
-	mode    Mode
+type spot struct {
+	session   *sp.Session
+	cmdline   CmdLine
+	quit      bool
+	logger    *log.Logger
+	mode      Mode
 }
 
-func (g *gspot) redraw() {
+func (g *spot) redraw() {
 	tb.Clear(tb.ColorWhite, tb.ColorDefault)
 	x, y := tb.Size()
 	// Draw top bar
 	for i := 0; i <= x; i++ {
 		tb.SetCell(i, 0, ' ', tb.ColorDefault, tb.ColorBlack)
 	}
-	printtb(0, 0, tb.AttrBold, tb.ColorBlack, "GSPOT v0.0.1")
+	printtb(0, 0, tb.AttrBold, tb.ColorBlack, "Spot "+version)
 
 	// Get the StatusMsg (message and color) for current spotify session state
 	// and print it at the top right
@@ -119,7 +125,7 @@ func drawbox(x, y, w, h int, title string) {
 	printtb(x+1, y, tb.ColorWhite, tb.ColorDefault, "["+title+"]")
 }
 
-func (g *gspot) docommand(cmd string, args []string) {
+func (g *spot) docommand(cmd string, args []string) {
 	switch cmd {
 	case "q", "quit":
 		g.quit = true
@@ -133,7 +139,7 @@ func (g *gspot) docommand(cmd string, args []string) {
 			Password: args[1],
 		}, false) // Don't remember for now, TODO: this
 		if err != nil {
-			g.cmdline.status = err.Error()
+			g.cmdline.status = "Login Error!"
 		}
 	case "logout":
 		err := g.session.Logout()
@@ -151,7 +157,7 @@ func (g *gspot) docommand(cmd string, args []string) {
 	}
 }
 
-func (g *gspot) run() {
+func (g *spot) run() {
 	for {
 		// Main run loop. Switch on termbox events (and later stuff from
 		// audio?)
@@ -224,14 +230,14 @@ func main() {
 	defer tb.Close()
 	session, err := sp.NewSession(&sp.Config{
 		ApplicationKey:   appkey,
-		ApplicationName:  "GSpot",
+		ApplicationName:  "Spot",
 		SettingsLocation: "tmp",
 		AudioConsumer:    nil,
 	})
 	if err != nil {
 		logger.Fatal(err)
 	}
-	gs := gspot{
+	gs := spot{
 		logger:  logger,
 		quit:    false,
 		session: session,

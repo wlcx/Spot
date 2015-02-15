@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+
+VERSION=`git describe --tags --always`
+
+go run  -ldflags "-X main.version $VERSION" main.go appkey.go util.go
