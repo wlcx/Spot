@@ -145,13 +145,13 @@ func (g *spot) docommand(cmd string, args []string) {
 		g.quit = true
 	case "login":
 		if len(args) != 2 {
-			g.cmdline.status = "Usage: :login <username> <password>"
+			g.cmdline.status = "Usage: :login [username] [password]"
 			return
 		}
 		err := g.session.Login(sp.Credentials{
 			Username: args[0],
 			Password: args[1],
-		}, false) // Don't remember for now, TODO: this
+		}, true)
 		if err != nil {
 			g.cmdline.status = "Login Error!"
 		}
@@ -163,6 +163,12 @@ func (g *spot) docommand(cmd string, args []string) {
 		// If the user issues a logout command, we assume they want to stay
 		// logged out
 		err = g.session.ForgetMe()
+		if err != nil {
+			g.cmdline.status = err.Error()
+		}
+	case "r", "relogin":
+		// TODO: Make this default somehow?
+		err := g.session.Relogin()
 		if err != nil {
 			g.cmdline.status = err.Error()
 		}
