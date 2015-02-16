@@ -18,11 +18,7 @@ type CmdLine struct {
 }
 
 func (c *CmdLine) Draw() {
-	x, y := tb.Size()
-	// First clear entire row
-	for i := 0; i < x; i++ {
-		tb.SetCell(i, y-1, ' ', tb.ColorWhite, tb.ColorDefault)
-	}
+	_, y := tb.Size()
 	// If there is a status message, draw it, otherwise draw the current
 	// command in c.Text
 	if c.status != "" {
@@ -56,6 +52,7 @@ func (c *CmdLine) Push() {
 func (c *CmdLine) Clear() {
 	c.Text = nil
 }
+
 // A status message and Termbox color attribute. For display in the top right
 type StatusMsg struct {
 	Msg    string
@@ -80,20 +77,19 @@ const (
 )
 
 type spot struct {
-	session   *sp.Session
-	cmdline   CmdLine
-	quit      bool
-	logger    *log.Logger
-	mode      Mode
+	session *sp.Session
+	cmdline CmdLine
+	quit    bool
+	logger  *log.Logger
+	mode    Mode
 }
 
+// (re)Draws the spot UI
 func (g *spot) redraw() {
 	tb.Clear(tb.ColorWhite, tb.ColorDefault)
 	x, y := tb.Size()
 	// Draw top bar
-	for i := 0; i <= x; i++ {
-		tb.SetCell(i, 0, ' ', tb.ColorDefault, tb.ColorBlack)
-	}
+	drawbar(0, tb.ColorBlack)
 	printtb(0, 0, tb.AttrBold, tb.ColorBlack, "Spot "+version)
 
 	// Get the StatusMsg (message and color) for current spotify session state
@@ -107,23 +103,6 @@ func (g *spot) redraw() {
 	//Draw Cmdline
 	g.cmdline.Draw()
 	tb.Flush()
-}
-
-// Draw a box with optional title
-func drawbox(x, y, w, h int, title string) {
-	tb.SetCell(x, y, '┌', tb.ColorWhite, tb.ColorDefault)
-	tb.SetCell(x, y+h-1, '└', tb.ColorWhite, tb.ColorDefault)
-	tb.SetCell(x+w-1, y, '┐', tb.ColorWhite, tb.ColorDefault)
-	tb.SetCell(x+w-1, y+h-1, '┘', tb.ColorWhite, tb.ColorDefault)
-	for i := 1; i < w-1; i++ {
-		tb.SetCell(x+i, y, '─', tb.ColorWhite, tb.ColorDefault)
-		tb.SetCell(x+i, y+h-1, '─', tb.ColorWhite, tb.ColorDefault)
-	}
-	for i := 1; i < h-1; i++ {
-		tb.SetCell(x, y+i, '│', tb.ColorWhite, tb.ColorDefault)
-		tb.SetCell(x+w-1, y+i, '│', tb.ColorWhite, tb.ColorDefault)
-	}
-	printtb(x+1, y, tb.ColorWhite, tb.ColorDefault, "["+title+"]")
 }
 
 func (g *spot) docommand(cmd string, args []string) {
@@ -172,7 +151,6 @@ func (g *spot) run() {
 				break
 			}
 			eventCh <- ev
-
 		}
 	}()
 
