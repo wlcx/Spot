@@ -19,7 +19,7 @@ var appkey = []byte{
   0x00, 0x01..... etc
 }
 ```
-- `go install`
+- `script/install`
 - Run `$GOPATH/bin/spot`
 - Recieve stack trace up in yo face
 - I told you it wasn't finished
