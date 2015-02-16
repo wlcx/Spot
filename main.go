@@ -110,12 +110,22 @@ const (
 	Search
 )
 
+type SpotScreen int
+
+const (
+	SpotScreenAbout SpotScreen = iota
+	SpotScreenPlaylists
+)
+
 type spot struct {
-	session *sp.Session
-	cmdline CmdLine
-	quit    bool
-	logger  *log.Logger
-	mode    Mode
+	session       *sp.Session
+	cmdline       CmdLine
+	quit          bool
+	logger        *log.Logger
+	mode          Mode
+	currentscreen SpotScreen
+	playlists     ScrollList
+	tracks        ScrollList
 }
 
 // (re)Draws the spot UI
@@ -131,10 +141,66 @@ func (g *spot) redraw() {
 	statusmsg := ConnstateMsg[g.session.ConnectionState()]
 	printtbrev(x, 0, statusmsg.Colour, tb.ColorBlack, statusmsg.Msg)
 
-	// Draw screen
-	drawbox(0, 1, x, y-2, "Playlists")
-
-	//Draw Cmdline
+	// Draw screens
+	switch g.currentscreen {
+	case SpotScreenAbout:
+		printtb(8, 5, tb.ColorGreen, tb.ColorDefault, `                     __ `)
+		printtb(8, 6, tb.ColorGreen, tb.ColorDefault, `   _________  ____  / /_`)
+		printtb(8, 7, tb.ColorGreen, tb.ColorDefault, `  / ___/ __ \/ __ \/ __/`)
+		printtb(8, 8, tb.ColorGreen, tb.ColorDefault, ` (__  ) /_/ / /_/ / /_  `)
+		printtb(8, 9, tb.ColorGreen, tb.ColorDefault, `/____/ .___/\____/\__/  `)
+		printtb(8, 10, tb.ColorGreen, tb.ColorDefault, `    /_/                 `)
+		printtb(8, 12, tb.ColorWhite, tb.ColorDefault, "Version "+version)
+		printtb(40, 6, tb.ColorWhite, tb.ColorDefault, "Welcome to Spot!")
+		printtb(40, 7, tb.ColorWhite, tb.ColorDefault, "A simple, fast command line Spotify Client")
+		printtb(40, 9, tb.ColorWhite, tb.ColorDefault, "Login by typing")
+		printtb(40, 10, tb.ColorWhite, tb.ColorDefault, ":login <username> <password>")
+	case SpotScreenPlaylists:
+		var playlistnames, tracknames []string
+		if g.session.ConnectionState() == sp.ConnectionStateLoggedIn {
+			playlistcont, err := g.session.Playlists()
+			if err != nil {
+				g.cmdline.status = err.Error()
+			} else {
+				playlistcont.Wait()
+				indent := 0
+				for i := 0; i < playlistcont.Playlists(); i++ {
+					// This is a little fiddly, we have to deal with playlist
+					// folders as well as regular
+					// playlistshttp://en.wikipedia.org/wiki/Category:Computing-related_lists
+					switch playlistcont.PlaylistType(i) {
+					case sp.PlaylistTypePlaylist:
+						playlistnames = append(playlistnames, strings.Repeat(" ", indent)+playlistcont.Playlist(i).Name())
+					case sp.PlaylistTypeStartFolder:
+						folder, _ := playlistcont.Folder(i)
+						playlistnames = append(playlistnames, strings.Repeat(" ", indent)+folder.Name())
+						indent++
+					case sp.PlaylistTypeEndFolder:
+						indent--
+					}
+				}
+				g.playlists.items = playlistnames
+				switch playlistcont.PlaylistType(g.playlists.selected) {
+				case sp.PlaylistTypePlaylist:
+					playlist := playlistcont.Playlist(g.playlists.selected)
+					playlist.Wait()
+					for i := 0; i < playlist.Tracks(); i++ {
+						tracknames = append(tracknames, playlist.Track(i).Track().Name())
+					}
+					g.tracks.items = tracknames
+				default:
+					g.tracks.items = nil
+				}
+			}
+		}
+		drawbox(0, 1, x, y-3, "Playlists")
+		g.playlists.Draw(1, 2, 30, y-5)
+		g.tracks.Draw(31, 2, x-32, y-5)
+	}
+	// Draw nowplaying
+	drawbar(y-2, tb.ColorBlack)
+	printtb(0, y-2, tb.ColorBlue, tb.ColorBlack, "Artist - Album - Track")
+	// Draw Cmdline
 	g.cmdline.Draw()
 	tb.Flush()
 }
@@ -228,6 +294,16 @@ func (g *spot) run() {
 						g.cmdline.Clear()
 					}
 					g.mode = Normal
+				case tb.KeyArrowUp:
+					switch g.currentscreen {
+					case SpotScreenPlaylists:
+						g.playlists.SelectUp()
+					}
+				case tb.KeyArrowDown:
+					switch g.currentscreen {
+					case SpotScreenPlaylists:
+						g.playlists.SelectDown()
+					}
 
 				default:
 					if g.mode == Command && ev.Ch != 0 {
@@ -242,6 +318,10 @@ func (g *spot) run() {
 						case 'q':
 							//Quit
 							g.quit = true
+						case '0':
+							g.currentscreen = SpotScreenAbout
+						case '1':
+							g.currentscreen = SpotScreenPlaylists
 						}
 					}
 				}
