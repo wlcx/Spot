@@ -19,6 +19,15 @@ func printtbrev(x, y int, fg, bg tb.Attribute, msg string) {
 	}
 }
 
+// Wraps printtb and limits the length of the printed line. Useful for
+// column-based layouts
+func printlim(x, y int, fg, bg tb.Attribute, msg string, lim int) {
+	if len(msg) > lim {
+		msg = msg[:lim-4] + "..."
+	}
+	printtb(x, y, fg, bg, msg)
+}
+
 // Draw a box with optional title
 func drawbox(x, y, w, h int, title string) {
 	tb.SetCell(x, y, '┌', tb.ColorWhite, tb.ColorDefault)
