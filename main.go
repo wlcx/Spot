@@ -1,9 +1,11 @@
 package main
 
-import "os"
-import "log"
-import "strings"
-import "sync"
+import (
+	"log"
+	"os"
+	"strings"
+	"sync"
+)
 
 import sp "github.com/op/go-libspotify/spotify"
 import tb "github.com/nsf/termbox-go"
