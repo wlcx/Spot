@@ -23,26 +23,31 @@ func printtbrev(x, y int, fg, bg tb.Attribute, msg string) {
 // column-based layouts
 func printlim(x, y int, fg, bg tb.Attribute, msg string, lim int) {
 	if len(msg) > lim {
-		msg = msg[:lim-4] + "..."
+		msg = msg[:lim-2] + ".."
 	}
 	printtb(x, y, fg, bg, msg)
 }
 
 // Draw a box with optional title
 func drawbox(x, y, w, h int, title string) {
-	tb.SetCell(x, y, '┌', tb.ColorWhite, tb.ColorDefault)
-	tb.SetCell(x, y+h-1, '└', tb.ColorWhite, tb.ColorDefault)
-	tb.SetCell(x+w-1, y, '┐', tb.ColorWhite, tb.ColorDefault)
-	tb.SetCell(x+w-1, y+h-1, '┘', tb.ColorWhite, tb.ColorDefault)
-	for i := 1; i < w-1; i++ {
+
+	for i := 0; i < w; i++ {
 		tb.SetCell(x+i, y, '─', tb.ColorWhite, tb.ColorDefault)
 		tb.SetCell(x+i, y+h-1, '─', tb.ColorWhite, tb.ColorDefault)
 	}
-	for i := 1; i < h-1; i++ {
+	for i := 0; i < h; i++ {
 		tb.SetCell(x, y+i, '│', tb.ColorWhite, tb.ColorDefault)
 		tb.SetCell(x+w-1, y+i, '│', tb.ColorWhite, tb.ColorDefault)
 	}
-	printtb(x+1, y, tb.ColorWhite, tb.ColorDefault, "["+title+"]")
+	if title != "" {
+		printtb(x+1, y, tb.ColorWhite, tb.ColorDefault, "["+title+"]")
+	}
+	if w > 1 {
+		tb.SetCell(x, y, '┌', tb.ColorWhite, tb.ColorDefault)
+		tb.SetCell(x, y+h-1, '└', tb.ColorWhite, tb.ColorDefault)
+		tb.SetCell(x+w-1, y, '┐', tb.ColorWhite, tb.ColorDefault)
+		tb.SetCell(x+w-1, y+h-1, '┘', tb.ColorWhite, tb.ColorDefault)
+	}
 }
 
 // Draw a bar across row y of the bgcolor bg

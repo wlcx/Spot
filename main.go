@@ -55,8 +55,13 @@ func (c *CmdLine) Clear() {
 	c.Text = nil
 }
 
+type ListItem struct {
+	name string
+	data int
+}
+
 type ScrollList struct {
-	items    []string
+	items    []ListItem
 	selected int
 }
 
@@ -70,10 +75,10 @@ func (l *ScrollList) Draw(x, y, w, h int) {
 		if i == l.selected { // Use selected colours
 			fgcolor, bgcolor = tb.ColorRed, tb.ColorBlack
 		}
-		for ix := x; ix < x+w-1; ix++ {
+		for ix := x; ix < x+w; ix++ {
 			tb.SetCell(ix, y+i, ' ', fgcolor, bgcolor)
 		}
-		printlim(x, y+i, fgcolor, bgcolor, l.items[i], w)
+		printlim(x, y+i, fgcolor, bgcolor, l.items[i].name, w)
 	}
 }
 
@@ -158,7 +163,7 @@ func (g *spot) redraw() {
 		printtb(40, 9, tb.ColorWhite, tb.ColorDefault, "Login by typing")
 		printtb(40, 10, tb.ColorWhite, tb.ColorDefault, ":login <username> <password>")
 	case SpotScreenPlaylists:
-		var playlistnames, tracknames []string
+		var playlistlist, tracklist []ListItem
 		if g.session.ConnectionState() == sp.ConnectionStateLoggedIn {
 			playlistcont, err := g.session.Playlists()
 			if err != nil {
@@ -168,36 +173,35 @@ func (g *spot) redraw() {
 				indent := 0
 				for i := 0; i < playlistcont.Playlists(); i++ {
 					// This is a little fiddly, we have to deal with playlist
-					// folders as well as regular
-					// playlistshttp://en.wikipedia.org/wiki/Category:Computing-related_lists
+					// folders as well as regular playlists
 					switch playlistcont.PlaylistType(i) {
 					case sp.PlaylistTypePlaylist:
-						playlistnames = append(playlistnames, strings.Repeat(" ", indent)+playlistcont.Playlist(i).Name())
+						playlistlist = append(playlistlist, ListItem{strings.Repeat(" ", indent) + playlistcont.Playlist(i).Name(), i})
 					case sp.PlaylistTypeStartFolder:
 						folder, _ := playlistcont.Folder(i)
-						playlistnames = append(playlistnames, strings.Repeat(" ", indent)+folder.Name())
+						playlistlist = append(playlistlist, ListItem{strings.Repeat(" ", indent) + folder.Name(), i})
 						indent++
 					case sp.PlaylistTypeEndFolder:
 						indent--
 					}
 				}
-				g.playlists.items = playlistnames
-				switch playlistcont.PlaylistType(g.playlists.selected) {
+				g.playlists.items = playlistlist
+				switch playlistcont.PlaylistType(g.playlists.items[g.playlists.selected].data) {
 				case sp.PlaylistTypePlaylist:
-					playlist := playlistcont.Playlist(g.playlists.selected)
+					playlist := playlistcont.Playlist(g.playlists.items[g.playlists.selected].data)
 					playlist.Wait()
 					for i := 0; i < playlist.Tracks(); i++ {
-						tracknames = append(tracknames, playlist.Track(i).Track().Name())
+						tracklist = append(tracklist, ListItem{playlist.Track(i).Track().Name(), i})
 					}
-					g.tracks.items = tracknames
+					g.tracks.items = tracklist
 				default:
 					g.tracks.items = nil
 				}
 			}
 		}
-		drawbox(0, 1, x, y-3, "Playlists")
-		g.playlists.Draw(1, 2, 30, y-5)
-		g.tracks.Draw(31, 2, x-32, y-5)
+		g.playlists.Draw(0, 1, 30, y-3)
+		drawbox(30, 1, 1, y-3, "") // Dividing line
+		g.tracks.Draw(31, 1, x-31, y-3)
 	}
 	// Draw nowplaying
 	drawbar(y-2, tb.ColorBlack)
