@@ -263,42 +263,42 @@ func (g *spot) redraw() {
 	tb.Flush()
 }
 
-func (g *spot) docommand(cmd string, args []string) {
+func (g *spot) docommand(cmd string, args []string) string {
 	switch cmd {
 	case "q", "quit":
 		g.quit = true
 	case "login":
 		if len(args) != 2 {
-			g.cmdline.status = "Usage: :login [username] [password]"
-			return
+			return "Usage: :login [username] [password]"
 		}
 		err := g.session.Login(sp.Credentials{
 			Username: args[0],
 			Password: args[1],
 		}, true)
 		if err != nil {
-			g.cmdline.status = "Login Error!"
+			return "Login Error!"
 		}
 	case "logout":
 		err := g.session.Logout()
 		if err != nil {
-			g.cmdline.status = err.Error()
+			return err.Error()
 		}
 		// If the user issues a logout command, we assume they want to stay
 		// logged out
 		err = g.session.ForgetMe()
 		if err != nil {
-			g.cmdline.status = err.Error()
+			return err.Error()
 		}
 	case "r", "relogin":
 		// TODO: Make this default somehow?
 		err := g.session.Relogin()
 		if err != nil {
-			g.cmdline.status = err.Error()
+			return err.Error()
 		}
 	default:
-		g.cmdline.status = "No such command"
+		return "No such command"
 	}
+	return ""
 }
 
 func (g *spot) run() {
@@ -331,7 +331,9 @@ func (g *spot) run() {
 						g.mode = Normal
 						if len(g.cmdline.Text) > 1 {
 							banana := strings.Split(string(g.cmdline.Text[1:]), " ")
-							g.docommand(banana[0], banana[1:])
+							if result := g.docommand(banana[0], banana[1:]); result != "" {
+								g.cmdline.status = result
+							}
 							g.cmdline.Push()
 						}
 					}
