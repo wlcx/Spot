@@ -154,7 +154,7 @@ type SpotScreenPlaylists struct {
 
 func (s *SpotScreenPlaylists) Draw(g *spot, x, y int) {
 	var playlistlist, tracklist []ListItem
-	if g.session.ConnectionState() == sp.ConnectionStateLoggedIn {
+	if g.loggedin {
 		playlistcont, err := g.session.Playlists()
 		if err != nil {
 			g.cmdline.status = err.Error()
@@ -212,7 +212,6 @@ func (s *SpotScreenPlaylists) HandleTBEvent(ev tb.Event) {
 			s.playlists.SelectDown()
 		}
 	}
-
 }
 
 type spot struct {
@@ -223,6 +222,7 @@ type spot struct {
 	mode          Mode
 	currentscreen int
 	screens       []SpotScreen
+	loggedin      bool
 }
 
 func SpotInit(logger *log.Logger, session *sp.Session) spot {
@@ -263,6 +263,14 @@ func (g *spot) redraw() {
 	tb.Flush()
 }
 
+func (g *spot) ChangeScreen(index int) {
+	if index != 0 && !g.loggedin {
+		g.cmdline.status = "Log in to do that"
+	} else {
+		g.currentscreen = index
+	}
+}
+
 func (g *spot) docommand(cmd string, args []string) string {
 	switch cmd {
 	case "q", "quit":
@@ -279,10 +287,12 @@ func (g *spot) docommand(cmd string, args []string) string {
 			return "Login Error!"
 		}
 	case "logout":
+		g.currentscreen = 0 // Swap to about screen TODO:less magic numbery
 		err := g.session.Logout()
 		if err != nil {
 			return err.Error()
 		}
+		g.loggedin = false
 		// If the user issues a logout command, we assume they want to stay
 		// logged out
 		err = g.session.ForgetMe()
@@ -370,9 +380,9 @@ func (g *spot) run() {
 							//Quit
 							g.quit = true
 						case '0':
-							g.currentscreen = 0
+							g.ChangeScreen(0)
 						case '1':
-							g.currentscreen = 1
+							g.ChangeScreen(1)
 						}
 					}
 				}
@@ -383,20 +393,23 @@ func (g *spot) run() {
 		case err := <-g.session.LoggedInUpdates():
 			if err != nil {
 				g.cmdline.status = err.Error()
+			} else {
+				g.loggedin = true
 			}
 		case <-g.session.LoggedOutUpdates():
 			g.cmdline.status = "Logged out"
+			g.loggedin = false
 		case <-g.session.ConnectionStateUpdates():
 			// Do nothing, we just want to trigger a redraw
 		}
 		g.redraw()
 		if g.quit {
-			// Send interrupt event and wait for event goroutine to terminate
-			tb.Interrupt()
-			wg.Wait()
 			// Clean up libspotify stuff before we terminate
 			g.session.Logout()
 			g.session.Close()
+			// Send interrupt event and wait for event goroutine to terminate
+			tb.Interrupt()
+			wg.Wait()
 			break
 		}
 	}
