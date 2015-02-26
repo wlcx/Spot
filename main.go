@@ -305,6 +305,23 @@ func (g *spot) docommand(cmd string, args []string) string {
 		if err != nil {
 			return err.Error()
 		}
+	case "load", "l":
+		if !g.loggedin {
+			return "Login first!"
+		}
+		link, err := g.session.ParseLink(args[0])
+		if err != nil {
+			return err.Error()
+		}
+		track, err := link.Track()
+		if err != nil {
+			panic(err)
+		}
+		track.Wait()
+		if err := g.session.Player().Load(track); err != nil {
+			panic(err)
+		}
+		return "Loaded!"
 	default:
 		return "No such command"
 	}
@@ -379,6 +396,10 @@ func (g *spot) run() {
 						case 'q':
 							//Quit
 							g.quit = true
+						case 'c':
+							g.session.Player().Play()
+						case 'x':
+							g.session.Player().Pause()
 						case '0':
 							g.ChangeScreen(0)
 						case '1':
@@ -422,11 +443,14 @@ func main() {
 		logger.Panic(err)
 	}
 	defer tb.Close()
+	AudioInit()
+	defer AudioDeinit()
+	aw, _ := NewAudioWriter()
 	session, err := sp.NewSession(&sp.Config{
 		ApplicationKey:   appkey,
 		ApplicationName:  "Spot",
 		SettingsLocation: "tmp",
-		AudioConsumer:    nil,
+		AudioConsumer:    aw,
 	})
 	if err != nil {
 		logger.Fatal(err)
