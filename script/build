@@ -1,5 +1,14 @@
 #!/usr/bin/env sh
 
 VERSION=`git describe --tags --always`
-
-go build -ldflags "-X main.version $VERSION"
+case `basename $0` in
+build)
+    go build -ldflags "-X main.version $VERSION"
+    ;;
+install)
+    go install -ldflags "-X main.version $VERSION"
+    ;;
+run)
+    go build -ldflags "-X main.version $VERSION"
+    ./spot
+esac
