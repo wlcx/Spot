@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/docopt/docopt-go"
 	tb "github.com/nsf/termbox-go"
 	sp "github.com/op/go-libspotify/spotify"
 )
@@ -344,11 +345,30 @@ func (g *spot) run() {
 	}
 }
 
+func parseArgs() (args map[string]interface{}, err error) {
+	usage := `spot
+
+Usage:
+	spot
+	spot -h | --help
+	spot -v | --version
+
+Options:
+	-h, --help        Show this help text
+	-v, --version     Display spot's version
+`
+	args, err = docopt.Parse(usage, nil, true, "Spot "+version, false)
+	return
+}
+
 func main() {
-	logger := log.New(os.Stdout, "[>] ", log.Lshortfile)
-	err := tb.Init()
+	_, err := parseArgs()
 	if err != nil {
-		logger.Panic(err)
+		log.Fatalln(err)
+	}
+	err = tb.Init()
+	if err != nil {
+		log.Fatal(err)
 	}
 	defer tb.Close()
 	AudioInit()
@@ -361,9 +381,9 @@ func main() {
 		AudioConsumer:    aw,
 	})
 	if err != nil {
-		logger.Fatal(err)
+		log.Fatal(err)
 	}
-	s := SpotInit(logger, session)
+	s := SpotInit(nil, session)
 	s.redraw()
 	s.run()
 }
