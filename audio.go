@@ -18,9 +18,10 @@ type audio struct {
 }
 
 type audioWriter struct {
-	input chan audio
-	quit  chan bool
-	wg    sync.WaitGroup
+	input  chan audio
+	quit   chan bool
+	wg     sync.WaitGroup
+	device *audioDevice
 }
 
 func AudioInit() {
@@ -33,8 +34,9 @@ func AudioDeinit() {
 
 func NewAudioWriter() (aw *audioWriter, err error) {
 	aw = &audioWriter{
-		input: make(chan audio, inputBufferSize),
-		quit:  make(chan bool),
+		input:  make(chan audio, inputBufferSize),
+		quit:   make(chan bool),
+		device: new(audioDevice),
 	}
 	driverid, err := ao.DefaultDriver()
 	if err != nil {
@@ -63,60 +65,71 @@ func (w *audioWriter) WriteAudio(format sp.AudioFormat, frames []byte) int {
 	}
 }
 
-func compareSpAudioFormat(a, b sp.AudioFormat) bool {
-	switch {
-	case &a == &b:
-		return true
-	case a.SampleRate != b.SampleRate:
-		return false
-	case a.Channels != b.Channels:
-		return false
-	case a.SampleType != b.SampleType:
-		return false
-	}
-	return true
+// AudioDevice wraps a portaudio device pointer with some state, allowing us to
+// handle changes in sample format closed devices neatly
+type audioDevice struct {
+	dev      *ao.Device
+	channels int
+	rate     int
 }
 
-func (w *audioWriter) AOWriter(driver int) {
-	var dev *ao.Device
+// Construct a libao sampleformat struct suitable for libspotify use
+// given channels and sample rate, the two things that can change
+// (libspotify uses 16bit native endianness. I think.)
+func getSampleFormat(channels, rate int) *ao.SampleFormat {
+	var matrix string
+	if channels == 1 {
+		matrix = "M"
+	} else {
+		matrix = "L,R"
+	}
+	return &ao.SampleFormat{
+		Channels:  channels,
+		Matrix:    matrix,
+		Rate:      rate,
+		Bits:      16,
+		ByteOrder: ao.EndianNative,
+	}
+}
+
+//Ready the audiodevice for writing, with the given channel/rate configuration.
+//Reuses existing device when it can, opens new device when needed
+func (a *audioDevice) Ready(channels, rate, driver int) (err error) {
+	if a.dev == nil || a.channels != channels || a.rate != rate {
+		if a.dev != nil {
+			//We have an open device; it just needs reconfiguring
+			a.dev.Close()
+		}
+		a.dev, err = ao.OpenLive(driver, getSampleFormat(channels, rate), nil)
+		if err != nil {
+			panic(err)
+		}
+		a.channels = channels
+		a.rate = rate
+	}
+	return
+}
+
+func (a *audioDevice) Close() {
+	a.dev.Close()
+	a.dev = nil
+}
+
+func (w *audioWriter) AOWriter(driverid int) {
 	defer w.wg.Done()
-	defer dev.Close()
 
 	var input audio
-	var lastSpFormat sp.AudioFormat
 	for {
 		select {
 		case input = <-w.input:
 		case <-w.quit:
 			return
 		}
-		if !compareSpAudioFormat(lastSpFormat, input.format) { // If the sample fomat has changed
-			if dev != nil {
-				dev.Close()
-			}
-			var matrix string
-			if input.format.Channels == 1 {
-				matrix = "M"
-			} else {
-				matrix = "L,R"
-			}
-			sf := ao.SampleFormat{
-				Channels:  input.format.Channels,
-				Matrix:    matrix,
-				Rate:      input.format.SampleRate,
-				Bits:      16,
-				ByteOrder: ao.EndianNative,
-			}
-			lastSpFormat = input.format
-			var err error
-			dev, err = ao.OpenLive(driver, &sf, nil)
-			if err != nil {
-				panic(err)
-			}
-		}
-		_, err := dev.Write(input.frames)
+		w.device.Ready(input.format.Channels, input.format.SampleRate, driverid)
+		_, err := w.device.dev.Write(input.frames)
 		if err != nil {
-			dev.Close()
+			// Should probably close the device
+			w.device.Close()
 		}
 	}
 }
