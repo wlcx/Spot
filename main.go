@@ -1,10 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"log"
-	"os"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/docopt/docopt-go"
 	tb "github.com/nsf/termbox-go"
@@ -123,6 +125,83 @@ const (
 	Search
 )
 
+type PlayerState int
+
+const (
+	Stopped PlayerState = iota
+	Playing
+	Paused
+	Ejected
+)
+
+type SpotPlayer struct {
+	spplayer  *sp.Player
+	track     *sp.Track
+	playstate PlayerState
+}
+
+func NewSpotPlayer(p *sp.Player) *SpotPlayer {
+	return &SpotPlayer{
+		spplayer:  p,
+		track:     nil,
+		playstate: Ejected,
+	}
+}
+
+func (p *SpotPlayer) PlayPause() {
+	switch p.playstate {
+	case Playing:
+		p.spplayer.Pause()
+		p.playstate = Paused
+	case Paused, Stopped:
+		p.spplayer.Play()
+		p.playstate = Playing
+	}
+}
+
+func (p *SpotPlayer) Stop() {
+	// Pause and seek 0
+	switch p.playstate {
+	case Playing:
+		p.spplayer.Pause()
+		p.spplayer.Seek(0)
+		p.playstate = Stopped
+	case Paused:
+		p.spplayer.Seek(0)
+		p.playstate = Stopped
+	}
+}
+
+func (p *SpotPlayer) Load(tr *sp.Track) (err error) {
+	if p.playstate != Ejected {
+		p.Eject()
+	}
+	err = p.spplayer.Load(tr)
+	if err == nil {
+		p.playstate = Stopped
+		p.track = tr
+	}
+	return
+}
+
+func (p *SpotPlayer) Eject() {
+	p.spplayer.Unload()
+	p.track = nil
+	p.playstate = Ejected
+}
+
+func (p *SpotPlayer) NowPlaying() map[string]string {
+	var artists string
+	for i := 0; i < p.track.Artists(); i++ {
+		artists += p.track.Artist(i).Name() + " " //TODO: make this nicer
+	}
+	return map[string]string{
+		"artist": artists,
+		"album":  p.track.Album().Name(),
+		"track":  p.track.Name(),
+	}
+}
+
 type spot struct {
 	session       *sp.Session
 	logger        *log.Logger
@@ -132,6 +211,7 @@ type spot struct {
 	currentscreen int
 	screens       []SpotScreen
 	loggedin      bool
+	Player        *SpotPlayer
 }
 
 func SpotInit(logger *log.Logger, session *sp.Session) spot {
@@ -145,8 +225,15 @@ func SpotInit(logger *log.Logger, session *sp.Session) spot {
 		mode:          Normal,
 		currentscreen: 0,
 		screens:       []SpotScreen{&a, &p},
+		Player:        NewSpotPlayer(session.Player()),
 	}
 
+}
+
+var PlayerstateSymbols = map[PlayerState]string{
+	Playing: ">",
+	Stopped: ".",
+	Paused:  "||",
 }
 
 // (re)Draws the spot UI
@@ -166,7 +253,15 @@ func (g *spot) redraw() {
 	g.screens[g.currentscreen].Draw(g, x, y)
 	// Draw nowplaying
 	drawbar(y-2, tb.ColorBlack)
-	printtb(0, y-2, tb.ColorBlue, tb.ColorBlack, "Artist - Album - Track")
+	var nowplayingstr string
+	switch g.Player.playstate {
+	case Ejected:
+		nowplayingstr = "Nothing playing"
+	case Playing, Paused, Stopped:
+		np := g.Player.NowPlaying()
+		nowplayingstr = fmt.Sprintf("%s %s - %s", PlayerstateSymbols[g.Player.playstate], np["artist"], np["track"])
+	}
+	printtb(0, y-2, tb.ColorBlue, tb.ColorBlack, nowplayingstr)
 	// Draw Cmdline
 	g.cmdline.Draw()
 	tb.Flush()
@@ -224,13 +319,24 @@ func (g *spot) docommand(cmd string, args []string) string {
 		}
 		track, err := link.Track()
 		if err != nil {
-			panic(err)
+			return err.Error()
 		}
 		track.Wait()
-		if err := g.session.Player().Load(track); err != nil {
-			panic(err)
+		if err := g.Player.Load(track); err != nil {
+			return err.Error()
 		}
 		return "Loaded!"
+	case "eject", "e":
+		g.Player.Eject()
+	case "seek", "s":
+		if len(args) != 1 {
+			return "Usage: seek <seconds>"
+		}
+		secs, err := strconv.Atoi(args[0])
+		if err != nil {
+			return "Enter a valid number of seconds"
+		}
+		g.Player.spplayer.Seek(time.Duration(secs) * time.Second)
 	default:
 		return "No such command"
 	}
@@ -306,9 +412,9 @@ func (g *spot) run() {
 							//Quit
 							g.quit = true
 						case 'c':
-							g.session.Player().Play()
-						case 'x':
-							g.session.Player().Pause()
+							g.Player.PlayPause()
+						case 'v':
+							g.Player.Stop()
 						case '0':
 							g.ChangeScreen(0)
 						case '1':
