@@ -233,7 +233,7 @@ func SpotInit(logger *log.Logger, session *sp.Session) spot {
 var PlayerstateSymbols = map[PlayerState]string{
 	Playing: ">",
 	Stopped: ".",
-	Paused:  "||",
+	Paused:  "|",
 }
 
 // (re)Draws the spot UI

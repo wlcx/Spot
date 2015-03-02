@@ -8,8 +8,7 @@ import (
 )
 
 var (
-	inputBufferSize  = 8
-	outputBufferSize = 8192
+	inputBufferSize = 8
 )
 
 type audio struct {
