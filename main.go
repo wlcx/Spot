@@ -214,10 +214,10 @@ type spot struct {
 	Player        *SpotPlayer
 }
 
-func SpotInit(logger *log.Logger, session *sp.Session) spot {
+func SpotInit(logger *log.Logger, session *sp.Session) (sp spot) {
 	a := SpotScreenAbout{}
 	p := SpotScreenPlaylists{}
-	return spot{
+	sp = spot{
 		session:       session,
 		logger:        logger,
 		cmdline:       CmdLine{},
@@ -227,6 +227,8 @@ func SpotInit(logger *log.Logger, session *sp.Session) spot {
 		screens:       []SpotScreen{&a, &p},
 		Player:        NewSpotPlayer(session.Player()),
 	}
+	p.sp = &sp
+	return
 
 }
 
@@ -378,6 +380,8 @@ func (g *spot) run() {
 							}
 							g.cmdline.Push()
 						}
+					} else {
+						g.screens[g.currentscreen].HandleTBEvent(ev)
 					}
 				case tb.KeyBackspace, tb.KeyBackspace2:
 					if g.mode == Command {

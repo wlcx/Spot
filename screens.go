@@ -35,6 +35,7 @@ type SpotScreenPlaylists struct {
 	playlists      ScrollList
 	tracks         ScrollList
 	tracksfocussed bool // if false, playlist list is focussed
+	sp             *spot
 }
 
 func (s *SpotScreenPlaylists) Draw(g *spot, x, y int) {
@@ -95,6 +96,25 @@ func (s *SpotScreenPlaylists) HandleTBEvent(ev tb.Event) {
 			s.tracks.SelectDown()
 		} else {
 			s.playlists.SelectDown()
+		}
+	case tb.KeyEnter:
+		if s.tracksfocussed {
+			playlistcont, err := s.sp.session.Playlists()
+			if err != nil {
+				s.sp.cmdline.status = err.Error()
+			} else {
+				playlistcont.Wait()
+				if playlistcont.PlaylistType(s.playlists.items[s.playlists.selected].data) == sp.PlaylistTypePlaylist {
+					playlist := playlistcont.Playlist(s.playlists.items[s.playlists.selected].data)
+					playlist.Wait()
+					if s.tracks.selected < playlist.Tracks() {
+						track := playlist.Track(s.tracks.selected).Track()
+						track.Wait()
+						s.sp.Player.Load(track)
+						s.sp.Player.PlayPause()
+					}
+				}
+			}
 		}
 	}
 }
