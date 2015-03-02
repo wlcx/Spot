@@ -2,6 +2,7 @@ package main
 
 import (
 	"sync"
+	"time"
 
 	sp "github.com/op/go-libspotify/spotify"
 	"github.com/wlcx/ao"
@@ -17,10 +18,12 @@ type audio struct {
 }
 
 type audioWriter struct {
-	input  chan audio
-	quit   chan bool
-	wg     sync.WaitGroup
-	device *audioDevice
+	input      chan audio
+	quit       chan bool
+	wg         sync.WaitGroup
+	device     *audioDevice
+	timeplayed time.Duration
+	ticks      chan time.Duration
 }
 
 func AudioInit() {
@@ -36,6 +39,7 @@ func NewAudioWriter() (aw *audioWriter, err error) {
 		input:  make(chan audio, inputBufferSize),
 		quit:   make(chan bool),
 		device: new(audioDevice),
+		ticks:  make(chan time.Duration),
 	}
 	driverid, err := ao.DefaultDriver()
 	if err != nil {
@@ -125,10 +129,15 @@ func (w *audioWriter) AOWriter(driverid int) {
 			return
 		}
 		w.device.Ready(input.format.Channels, input.format.SampleRate, driverid)
-		_, err := w.device.dev.Write(input.frames)
+		bytes, err := w.device.dev.Write(input.frames)
 		if err != nil {
 			// Should probably close the device
 			w.device.Close()
+		}
+		w.timeplayed += time.Duration(((bytes/input.format.Channels/2)*1000000)/input.format.SampleRate) * time.Microsecond
+		if w.timeplayed > time.Duration(1)*time.Second {
+			w.ticks <- w.timeplayed
+			w.timeplayed = time.Duration(0)
 		}
 	}
 }

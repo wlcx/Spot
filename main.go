@@ -138,6 +138,7 @@ type SpotPlayer struct {
 	spplayer  *sp.Player
 	track     *sp.Track
 	playstate PlayerState
+	elapsed   time.Duration
 }
 
 func NewSpotPlayer(p *sp.Player) *SpotPlayer {
@@ -145,6 +146,7 @@ func NewSpotPlayer(p *sp.Player) *SpotPlayer {
 		spplayer:  p,
 		track:     nil,
 		playstate: Ejected,
+		elapsed:   time.Duration(0),
 	}
 }
 
@@ -164,11 +166,11 @@ func (p *SpotPlayer) Stop() {
 	switch p.playstate {
 	case Playing:
 		p.spplayer.Pause()
-		p.spplayer.Seek(0)
-		p.playstate = Stopped
+		fallthrough
 	case Paused:
 		p.spplayer.Seek(0)
 		p.playstate = Stopped
+		p.elapsed = time.Duration(0)
 	}
 }
 
@@ -188,6 +190,7 @@ func (p *SpotPlayer) Eject() {
 	p.spplayer.Unload()
 	p.track = nil
 	p.playstate = Ejected
+	p.elapsed = time.Duration(0)
 }
 
 func (p *SpotPlayer) NowPlaying() map[string]string {
@@ -196,10 +199,21 @@ func (p *SpotPlayer) NowPlaying() map[string]string {
 		artists += p.track.Artist(i).Name() + " " //TODO: make this nicer
 	}
 	return map[string]string{
-		"artist": artists,
-		"album":  p.track.Album().Name(),
-		"track":  p.track.Name(),
+		"artist":   artists,
+		"album":    p.track.Album().Name(),
+		"track":    p.track.Name(),
+		"duration": PrettyDuration(p.track.Duration()),
+		"elapsed":  PrettyDuration(p.elapsed),
 	}
+}
+
+func (p *SpotPlayer) AddElapsed(dur time.Duration) {
+	p.elapsed += dur
+}
+
+func (p *SpotPlayer) Seek(pos time.Duration) {
+	p.spplayer.Seek(pos)
+	p.elapsed = pos
 }
 
 type spot struct {
@@ -212,9 +226,10 @@ type spot struct {
 	screens       []SpotScreen
 	loggedin      bool
 	Player        *SpotPlayer
+	audiowriter   *audioWriter
 }
 
-func SpotInit(logger *log.Logger, session *sp.Session) (sp spot) {
+func SpotInit(logger *log.Logger, session *sp.Session, aw *audioWriter) (sp spot) {
 	a := SpotScreenAbout{}
 	p := SpotScreenPlaylists{}
 	sp = spot{
@@ -226,6 +241,7 @@ func SpotInit(logger *log.Logger, session *sp.Session) (sp spot) {
 		currentscreen: 0,
 		screens:       []SpotScreen{&a, &p},
 		Player:        NewSpotPlayer(session.Player()),
+		audiowriter:   aw,
 	}
 	p.sp = &sp
 	return
@@ -261,7 +277,7 @@ func (g *spot) redraw() {
 		nowplayingstr = "Nothing playing"
 	case Playing, Paused, Stopped:
 		np := g.Player.NowPlaying()
-		nowplayingstr = fmt.Sprintf("%s %s - %s", PlayerstateSymbols[g.Player.playstate], np["artist"], np["track"])
+		nowplayingstr = fmt.Sprintf("%s %s/%s %s - %s", PlayerstateSymbols[g.Player.playstate], np["elapsed"], np["duration"], np["track"], np["artist"])
 	}
 	printtb(0, y-2, tb.ColorBlue, tb.ColorBlack, nowplayingstr)
 	// Draw Cmdline
@@ -338,7 +354,7 @@ func (g *spot) docommand(cmd string, args []string) string {
 		if err != nil {
 			return "Enter a valid number of seconds"
 		}
-		g.Player.spplayer.Seek(time.Duration(secs) * time.Second)
+		g.Player.Seek(time.Duration(secs) * time.Second)
 	default:
 		return "No such command"
 	}
@@ -441,6 +457,10 @@ func (g *spot) run() {
 			g.loggedin = false
 		case <-g.session.ConnectionStateUpdates():
 			// Do nothing, we just want to trigger a redraw
+		case <-g.session.EndOfTrackUpdates():
+			g.Player.Stop() // We use this to Synchronise Player's state
+		case time := <-g.audiowriter.ticks:
+			g.Player.AddElapsed(time)
 		}
 		g.redraw()
 		if g.quit {
@@ -493,7 +513,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	s := SpotInit(nil, session)
+	s := SpotInit(nil, session, aw)
 	s.redraw()
 	s.run()
 }
