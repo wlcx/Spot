@@ -139,25 +139,29 @@ type SpotPlayer struct {
 	track     *sp.Track
 	playstate PlayerState
 	elapsed   time.Duration
+	aw        *AudioWriter
 }
 
-func NewSpotPlayer(p *sp.Player) *SpotPlayer {
+func NewSpotPlayer(p *sp.Player, aw *AudioWriter) *SpotPlayer {
 	return &SpotPlayer{
 		spplayer:  p,
 		track:     nil,
 		playstate: Ejected,
 		elapsed:   time.Duration(0),
+		aw:        aw,
 	}
 }
 
 func (p *SpotPlayer) PlayPause() {
 	switch p.playstate {
 	case Playing:
+		p.aw.Pause(true)
 		p.spplayer.Pause()
 		p.playstate = Paused
 	case Paused, Stopped:
 		p.spplayer.Play()
 		p.playstate = Playing
+		p.aw.Pause(false)
 	}
 }
 
@@ -168,6 +172,7 @@ func (p *SpotPlayer) Stop() {
 		p.spplayer.Pause()
 		fallthrough
 	case Paused:
+		p.aw.Flush()
 		p.spplayer.Seek(0)
 		p.playstate = Stopped
 		p.elapsed = time.Duration(0)
@@ -187,6 +192,7 @@ func (p *SpotPlayer) Load(tr *sp.Track) (err error) {
 }
 
 func (p *SpotPlayer) Eject() {
+	p.aw.Flush()
 	p.spplayer.Unload()
 	p.track = nil
 	p.playstate = Ejected
@@ -213,6 +219,7 @@ func (p *SpotPlayer) AddElapsed(dur time.Duration) {
 
 func (p *SpotPlayer) Seek(pos time.Duration) {
 	p.spplayer.Seek(pos)
+	p.aw.Flush()
 	p.elapsed = pos
 }
 
@@ -226,10 +233,10 @@ type spot struct {
 	screens       []SpotScreen
 	loggedin      bool
 	Player        *SpotPlayer
-	audiowriter   *audioWriter
+	audiowriter   *AudioWriter
 }
 
-func SpotInit(logger *log.Logger, session *sp.Session, aw *audioWriter) (sp spot) {
+func SpotInit(logger *log.Logger, session *sp.Session, aw *AudioWriter) (sp spot) {
 	a := SpotScreenAbout{}
 	p := SpotScreenPlaylists{}
 	sp = spot{
@@ -240,7 +247,7 @@ func SpotInit(logger *log.Logger, session *sp.Session, aw *audioWriter) (sp spot
 		mode:          Normal,
 		currentscreen: 0,
 		screens:       []SpotScreen{&a, &p},
-		Player:        NewSpotPlayer(session.Player()),
+		Player:        NewSpotPlayer(session.Player(), aw),
 		audiowriter:   aw,
 	}
 	p.sp = &sp
@@ -459,7 +466,7 @@ func (g *spot) run() {
 			// Do nothing, we just want to trigger a redraw
 		case <-g.session.EndOfTrackUpdates():
 			g.Player.Stop() // We use this to Synchronise Player's state
-		case time := <-g.audiowriter.ticks:
+		case time := <-g.audiowriter.Ticks:
 			g.Player.AddElapsed(time)
 		}
 		g.redraw()

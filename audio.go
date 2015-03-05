@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	inputBufferSize = 8
+	inputBufferSize = 16
 )
 
 type audio struct {
@@ -17,13 +17,15 @@ type audio struct {
 	frames []byte
 }
 
-type audioWriter struct {
+type AudioWriter struct {
 	input      chan audio
 	quit       chan bool
 	wg         sync.WaitGroup
 	device     *audioDevice
 	timeplayed time.Duration
-	ticks      chan time.Duration
+	Ticks      chan time.Duration
+	flush      chan bool
+	paused     Latch
 }
 
 func AudioInit() {
@@ -34,12 +36,28 @@ func AudioDeinit() {
 	ao.Shutdown()
 }
 
-func NewAudioWriter() (aw *audioWriter, err error) {
-	aw = &audioWriter{
+// Pause allows instantaneous pause and unpause of buffer playback
+func (w *AudioWriter) Pause(pause bool) {
+	if pause {
+		w.paused.Set()
+	} else {
+		w.paused.Clear()
+	}
+}
+
+// Flush unpauses and clear the current audio buffer
+func (w *AudioWriter) Flush() {
+	w.paused.Clear()
+	w.flush <- true
+}
+
+func NewAudioWriter() (aw *AudioWriter, err error) {
+	aw = &AudioWriter{
 		input:  make(chan audio, inputBufferSize),
 		quit:   make(chan bool),
 		device: new(audioDevice),
-		ticks:  make(chan time.Duration),
+		Ticks:  make(chan time.Duration),
+		flush:  make(chan bool),
 	}
 	driverid, err := ao.DefaultDriver()
 	if err != nil {
@@ -50,7 +68,8 @@ func NewAudioWriter() (aw *audioWriter, err error) {
 	return
 }
 
-func (w *audioWriter) Close() {
+func (w *AudioWriter) Close() {
+	w.Flush() // Flush and unpause first, to ensure the main AOWriter loop is unblocked
 	select {
 	case w.quit <- true:
 	default:
@@ -59,7 +78,8 @@ func (w *audioWriter) Close() {
 	return
 }
 
-func (w *audioWriter) WriteAudio(format sp.AudioFormat, frames []byte) int {
+// The Libspotify callback for audio delivery
+func (w *AudioWriter) WriteAudio(format sp.AudioFormat, frames []byte) int {
 	select {
 	case w.input <- audio{format, frames}:
 		return len(frames)
@@ -69,7 +89,7 @@ func (w *audioWriter) WriteAudio(format sp.AudioFormat, frames []byte) int {
 }
 
 // AudioDevice wraps a portaudio device pointer with some state, allowing us to
-// handle changes in sample format closed devices neatly
+// handle changes in sample format neatly
 type audioDevice struct {
 	dev      *ao.Device
 	channels int
@@ -95,8 +115,8 @@ func getSampleFormat(channels, rate int) *ao.SampleFormat {
 	}
 }
 
-//Ready the audiodevice for writing, with the given channel/rate configuration.
-//Reuses existing device when it can, opens new device when needed
+// Ready the audiodevice for writing, with the given channel/rate configuration.
+// Reuses existing device when it can, opens new device when needed
 func (a *audioDevice) Ready(channels, rate, driver int) (err error) {
 	if a.dev == nil || a.channels != channels || a.rate != rate {
 		if a.dev != nil {
@@ -118,26 +138,37 @@ func (a *audioDevice) Close() {
 	a.dev = nil
 }
 
-func (w *audioWriter) AOWriter(driverid int) {
+func (w *AudioWriter) AOWriter(driverid int) {
+	defer w.device.Close()
 	defer w.wg.Done()
-
 	var input audio
 	for {
 		select {
-		case input = <-w.input:
+		case <-w.flush:
+			// Flush the input buffer (E.G. on song change) by remaking the channel.
+			w.input = make(chan audio, inputBufferSize)
 		case <-w.quit:
 			return
-		}
-		w.device.Ready(input.format.Channels, input.format.SampleRate, driverid)
-		bytes, err := w.device.dev.Write(input.frames)
-		if err != nil {
-			// Should probably close the device
-			w.device.Close()
-		}
-		w.timeplayed += time.Duration(((bytes/input.format.Channels/2)*1000000)/input.format.SampleRate) * time.Microsecond
-		if w.timeplayed > time.Duration(1)*time.Second {
-			w.ticks <- w.timeplayed
-			w.timeplayed = time.Duration(0)
+		case input = <-w.input:
+			// TODO: refresh the default driverid so we can 'roam' across devices.
+			w.device.Ready(input.format.Channels, input.format.SampleRate, driverid)
+			bytes, err := w.device.dev.Write(input.frames)
+			if err != nil {
+				// Close the device and hope it can be reopened next time round
+				w.device.Close()
+			} else {
+				w.timeplayed += time.Duration(((bytes/input.format.Channels/2)*1000000)/input.format.SampleRate) * time.Microsecond
+				if w.timeplayed > time.Duration(1)*time.Second {
+					// Nonblocking send - if we can't send, don't reset timeplayed and
+					// we'll try next time round.
+					select {
+					case w.Ticks <- w.timeplayed:
+						w.timeplayed = time.Duration(0)
+					default:
+					}
+				}
+			}
+			w.paused.Wait() // Block here if paused is set
 		}
 	}
 }
