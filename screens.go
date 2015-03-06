@@ -8,13 +8,13 @@ import (
 )
 
 type SpotScreen interface {
-	Draw(g *spot, x, y int)
+	Draw(x, y, h, w int)
 	HandleTBEvent(ev tb.Event)
 }
 
 type SpotScreenAbout struct{}
 
-func (SpotScreenAbout) Draw(_ *spot, _, _ int) {
+func (SpotScreenAbout) Draw(_, _, _, _ int) {
 	printtb(8, 5, tb.ColorGreen, tb.ColorDefault, `                     __ `)
 	printtb(8, 6, tb.ColorGreen, tb.ColorDefault, `   _________  ____  / /_`)
 	printtb(8, 7, tb.ColorGreen, tb.ColorDefault, `  / ___/ __ \/ __ \/ __/`)
@@ -38,12 +38,12 @@ type SpotScreenPlaylists struct {
 	sp             *spot
 }
 
-func (s *SpotScreenPlaylists) Draw(g *spot, x, y int) {
+func (s *SpotScreenPlaylists) Draw(x, y, w, h int) {
 	var playlistlist, tracklist []ListItem
-	if g.loggedin {
-		playlistcont, err := g.session.Playlists()
+	if s.sp.loggedin {
+		playlistcont, err := s.sp.session.Playlists()
 		if err != nil {
-			g.cmdline.status = err.Error()
+			s.sp.cmdline.status = err.Error()
 		} else {
 			playlistcont.Wait()
 			indent := 0
@@ -75,9 +75,9 @@ func (s *SpotScreenPlaylists) Draw(g *spot, x, y int) {
 			}
 		}
 	}
-	s.playlists.Draw(0, 1, 30, y-3, !s.tracksfocussed)
-	drawbox(30, 1, 1, y-3, "") // Dividing line
-	s.tracks.Draw(31, 1, x-31, y-3, s.tracksfocussed)
+	s.playlists.Draw(x, y, 30, h, !s.tracksfocussed)
+	drawbox(x+30, y, 1, h, "") // Dividing line
+	s.tracks.Draw(x+31, y, w-31, h, s.tracksfocussed)
 }
 
 func (s *SpotScreenPlaylists) HandleTBEvent(ev tb.Event) {
