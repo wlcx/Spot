@@ -11,6 +11,7 @@ import (
 	"github.com/docopt/docopt-go"
 	tb "github.com/nsf/termbox-go"
 	sp "github.com/op/go-libspotify/spotify"
+	ui "github.com/wlcx/spot/termboxui"
 )
 
 // This should be injected at compile time by a script
@@ -27,7 +28,7 @@ func (c *CmdLine) Draw() {
 	// If there is a status message, draw it, otherwise draw the current
 	// command in c.Text
 	if c.status != "" {
-		printtb(0, y-1, tb.ColorRed, tb.ColorDefault, c.status)
+		ui.Print(0, y-1, tb.ColorRed, tb.ColorDefault, c.status)
 	} else {
 		for i, r := range c.Text {
 			tb.SetCell(i, y-1, r, tb.ColorWhite, tb.ColorDefault)
@@ -86,7 +87,7 @@ func (l *ScrollList) Draw(x, y, w, h int, focussed bool) {
 		for ix := x; ix < x+w; ix++ {
 			tb.SetCell(ix, y+i, ' ', fgcolor, bgcolor)
 		}
-		printlim(x, y+i, fgcolor, bgcolor, l.items[i].name, w)
+		ui.Printlim(x, y+i, fgcolor, bgcolor, l.items[i].name, w)
 	}
 }
 
@@ -270,19 +271,19 @@ func (g *spot) redraw() {
 	tb.Clear(tb.ColorWhite, tb.ColorDefault)
 	termw, termh := tb.Size()
 	// Draw top bar
-	drawbar(0, tb.ColorBlack)
-	printtb(0, 0, tb.AttrBold, tb.ColorBlack, "Spot "+version)
+	ui.Drawbar(0, tb.ColorBlack)
+	ui.Print(0, 0, tb.AttrBold, tb.ColorBlack, "Spot "+version)
 
 	// Get the StatusMsg (message and color) for current spotify session state
 	// and print it at the top right
 	statusmsg := ConnstateMsg[g.session.ConnectionState()]
-	printtbrev(termw, 0, statusmsg.Colour, tb.ColorBlack, statusmsg.Msg)
+	ui.Printr(termw, 0, statusmsg.Colour, tb.ColorBlack, statusmsg.Msg)
 
 	// Draw active screen
 	g.screens[g.currentscreen].Draw(0, 1, termw, termh-3)
 
 	// Draw nowplaying
-	drawbar(termh-2, tb.ColorBlack)
+	ui.Drawbar(termh-2, tb.ColorBlack)
 	var nowplayingstr string
 	switch g.Player.playstate {
 	case Ejected:
@@ -291,7 +292,7 @@ func (g *spot) redraw() {
 		np := g.Player.NowPlaying()
 		nowplayingstr = fmt.Sprintf("%s %s/%s %s - %s", PlayerstateSymbols[g.Player.playstate], np["elapsed"], np["duration"], np["track"], np["artist"])
 	}
-	printtb(0, termh-2, tb.ColorBlue, tb.ColorBlack, nowplayingstr)
+	ui.Print(0, termh-2, tb.ColorBlue, tb.ColorBlack, nowplayingstr)
 
 	// Draw Cmdline
 	g.cmdline.Draw()

@@ -5,6 +5,7 @@ import (
 
 	tb "github.com/nsf/termbox-go"
 	sp "github.com/op/go-libspotify/spotify"
+	ui "github.com/wlcx/spot/termboxui"
 )
 
 type SpotScreen interface {
@@ -15,17 +16,17 @@ type SpotScreen interface {
 type SpotScreenAbout struct{}
 
 func (SpotScreenAbout) Draw(_, _, _, _ int) {
-	printtb(8, 5, tb.ColorGreen, tb.ColorDefault, `                     __ `)
-	printtb(8, 6, tb.ColorGreen, tb.ColorDefault, `   _________  ____  / /_`)
-	printtb(8, 7, tb.ColorGreen, tb.ColorDefault, `  / ___/ __ \/ __ \/ __/`)
-	printtb(8, 8, tb.ColorGreen, tb.ColorDefault, ` (__  ) /_/ / /_/ / /_  `)
-	printtb(8, 9, tb.ColorGreen, tb.ColorDefault, `/____/ .___/\____/\__/  `)
-	printtb(8, 10, tb.ColorGreen, tb.ColorDefault, `    /_/                 `)
-	printtb(8, 12, tb.ColorWhite, tb.ColorDefault, "Version "+version)
-	printtb(40, 6, tb.ColorWhite, tb.ColorDefault, "Welcome to Spot!")
-	printtb(40, 7, tb.ColorWhite, tb.ColorDefault, "A simple, fast command line Spotify Client")
-	printtb(40, 9, tb.ColorWhite, tb.ColorDefault, "Login by typing")
-	printtb(40, 10, tb.ColorWhite, tb.ColorDefault, ":login <username> <password>")
+	ui.Print(8, 5, tb.ColorGreen, tb.ColorDefault, `                     __ `)
+	ui.Print(8, 6, tb.ColorGreen, tb.ColorDefault, `   _________  ____  / /_`)
+	ui.Print(8, 7, tb.ColorGreen, tb.ColorDefault, `  / ___/ __ \/ __ \/ __/`)
+	ui.Print(8, 8, tb.ColorGreen, tb.ColorDefault, ` (__  ) /_/ / /_/ / /_  `)
+	ui.Print(8, 9, tb.ColorGreen, tb.ColorDefault, `/____/ .___/\____/\__/  `)
+	ui.Print(8, 10, tb.ColorGreen, tb.ColorDefault, `    /_/                 `)
+	ui.Print(8, 12, tb.ColorWhite, tb.ColorDefault, "Version "+version)
+	ui.Print(40, 6, tb.ColorWhite, tb.ColorDefault, "Welcome to Spot!")
+	ui.Print(40, 7, tb.ColorWhite, tb.ColorDefault, "A simple, fast command line Spotify Client")
+	ui.Print(40, 9, tb.ColorWhite, tb.ColorDefault, "Login by typing")
+	ui.Print(40, 10, tb.ColorWhite, tb.ColorDefault, ":login <username> <password>")
 }
 
 func (SpotScreenAbout) HandleTBEvent(tb.Event) {
@@ -76,7 +77,7 @@ func (s *SpotScreenPlaylists) Draw(x, y, w, h int) {
 		}
 	}
 	s.playlists.Draw(x, y, 30, h, !s.tracksfocussed)
-	drawbox(x+30, y, 1, h, "") // Dividing line
+	ui.Drawbox(x+30, y, 1, h, "") // Dividing line
 	s.tracks.Draw(x+31, y, w-31, h, s.tracksfocussed)
 }
 
