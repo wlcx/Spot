@@ -223,6 +223,10 @@ func (p *SpotPlayer) Seek(pos time.Duration) {
 	p.elapsed = pos
 }
 
+func (p *SpotPlayer) Scrub(offset time.Duration) {
+	p.Seek(p.elapsed + offset)
+}
+
 type spot struct {
 	session       *sp.Session
 	logger        *log.Logger
@@ -427,6 +431,10 @@ func (g *spot) run() {
 					g.mode = Normal
 				case tb.KeyTab, tb.KeyArrowUp, tb.KeyArrowDown:
 					g.screens[g.currentscreen].HandleTBEvent(ev)
+				case tb.KeyArrowLeft:
+					g.Player.Scrub(time.Duration(-10) * time.Second)
+				case tb.KeyArrowRight:
+					g.Player.Scrub(time.Duration(10) * time.Second)
 				default:
 					if g.mode == Command && ev.Ch != 0 {
 						g.cmdline.AddChar(ev.Ch)
