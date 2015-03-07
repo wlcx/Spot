@@ -15,18 +15,16 @@ type SpotScreen interface {
 
 type SpotScreenAbout struct{}
 
-func (SpotScreenAbout) Draw(_, _, _, _ int) {
-	ui.Print(8, 5, tb.ColorGreen, tb.ColorDefault, `                     __ `)
-	ui.Print(8, 6, tb.ColorGreen, tb.ColorDefault, `   _________  ____  / /_`)
-	ui.Print(8, 7, tb.ColorGreen, tb.ColorDefault, `  / ___/ __ \/ __ \/ __/`)
-	ui.Print(8, 8, tb.ColorGreen, tb.ColorDefault, ` (__  ) /_/ / /_/ / /_  `)
-	ui.Print(8, 9, tb.ColorGreen, tb.ColorDefault, `/____/ .___/\____/\__/  `)
-	ui.Print(8, 10, tb.ColorGreen, tb.ColorDefault, `    /_/                 `)
-	ui.Print(8, 12, tb.ColorWhite, tb.ColorDefault, "Version "+version)
-	ui.Print(40, 6, tb.ColorWhite, tb.ColorDefault, "Welcome to Spot!")
-	ui.Print(40, 7, tb.ColorWhite, tb.ColorDefault, "A simple, fast command line Spotify Client")
-	ui.Print(40, 9, tb.ColorWhite, tb.ColorDefault, "Login by typing")
-	ui.Print(40, 10, tb.ColorWhite, tb.ColorDefault, ":login <username> <password>")
+func (SpotScreenAbout) Draw(_, _, w, _ int) {
+	ui.Printc(w/2, 5, tb.ColorGreen, tb.ColorDefault, `                     __ `)
+	ui.Printc(w/2, 6, tb.ColorGreen, tb.ColorDefault, `   _________  ____  / /_`)
+	ui.Printc(w/2, 7, tb.ColorGreen, tb.ColorDefault, `  / ___/ __ \/ __ \/ __/`)
+	ui.Printc(w/2, 8, tb.ColorGreen, tb.ColorDefault, ` (__  ) /_/ / /_/ / /_  `)
+	ui.Printc(w/2, 9, tb.ColorGreen, tb.ColorDefault, `/____/ .___/\____/\__/  `)
+	ui.Printc(w/2, 10, tb.ColorGreen, tb.ColorDefault, `    /_/                 `)
+	ui.Printc(w/2, 12, tb.ColorWhite, tb.ColorDefault, "Welcome to Spot "+version)
+	ui.Printc(w/2, 13, tb.ColorWhite, tb.ColorDefault, "A simple, fast command line Spotify Client")
+	ui.Printc(w/2, 15, tb.ColorWhite, tb.ColorDefault, "Spot uses vim-like commands. Use the source for now.")
 }
 
 func (SpotScreenAbout) HandleTBEvent(tb.Event) {
