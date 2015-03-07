@@ -32,8 +32,8 @@ func (SpotScreenAbout) HandleTBEvent(tb.Event) {
 
 type SpotScreenPlaylists struct {
 	playlists      *sp.PlaylistContainer
-	tracksSL       ScrollList
-	playlistsSL    ScrollList
+	tracksSL       ui.ScrollList
+	playlistsSL    ui.ScrollList
 	tracksfocussed bool // if false, playlist list is focussed
 	sp             *spot
 }
@@ -43,8 +43,8 @@ type SpotScreenPlaylists struct {
 // (I assume) the tracks were loading in a playlist.
 func NewSpotScreenPlaylists() SpotScreenPlaylists {
 	return SpotScreenPlaylists{
-		playlistsSL: NewScrollList(),
-		tracksSL:    NewScrollList(),
+		playlistsSL: ui.NewScrollList(),
+		tracksSL:    ui.NewScrollList(),
 	}
 }
 
@@ -54,35 +54,35 @@ func (s *SpotScreenPlaylists) Draw(x, y, w, h int) {
 	if err == nil {
 		s.playlists.Wait()
 	}
-	var playlistlist, tracklist []ListItem
+	var playlistlist, tracklist []ui.ListItem
 	indent := 0
 	for i := 0; i < s.playlists.Playlists(); i++ {
 		// This is a little fiddly, we have to deal with playlist
 		// folders as well as regular playlists
 		switch s.playlists.PlaylistType(i) {
 		case sp.PlaylistTypePlaylist:
-			playlistlist = append(playlistlist, ListItem{strings.Repeat(" ", indent) + s.playlists.Playlist(i).Name(), i})
+			playlistlist = append(playlistlist, ui.ListItem{strings.Repeat(" ", indent) + s.playlists.Playlist(i).Name(), i})
 		case sp.PlaylistTypeStartFolder:
 			folder, _ := s.playlists.Folder(i)
-			playlistlist = append(playlistlist, ListItem{strings.Repeat(" ", indent) + folder.Name(), i})
+			playlistlist = append(playlistlist, ui.ListItem{strings.Repeat(" ", indent) + folder.Name(), i})
 			indent++
 		case sp.PlaylistTypeEndFolder:
 			indent--
 		}
 	}
-	s.playlistsSL.items = playlistlist
-	switch s.playlists.PlaylistType(s.playlistsSL.items[s.playlistsSL.selected].data) {
+	s.playlistsSL.Items = playlistlist
+	switch s.playlists.PlaylistType(s.playlistsSL.Items[s.playlistsSL.Selected].Data) {
 	case sp.PlaylistTypePlaylist:
-		playlist := s.playlists.Playlist(s.playlistsSL.items[s.playlistsSL.selected].data)
+		playlist := s.playlists.Playlist(s.playlistsSL.Items[s.playlistsSL.Selected].Data)
 		playlist.Wait()
 		for i := 0; i < playlist.Tracks(); i++ {
 			track := playlist.Track(i).Track()
 			track.Wait()
-			tracklist = append(tracklist, ListItem{track.Name(), i})
+			tracklist = append(tracklist, ui.ListItem{track.Name(), i})
 		}
-		s.tracksSL.items = tracklist
+		s.tracksSL.Items = tracklist
 	default:
-		s.tracksSL.items = nil
+		s.tracksSL.Items = nil
 	}
 	s.playlistsSL.Draw(x, y, 30, h, !s.tracksfocussed)
 	ui.Drawbox(x+30, y, 1, h, "") // Dividing line

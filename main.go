@@ -59,59 +59,6 @@ func (c *CmdLine) Clear() {
 	c.Text = nil
 }
 
-type ListItem struct {
-	name string
-	data int
-}
-
-type ScrollList struct {
-	items    []ListItem
-	selected int
-	highlit  int
-}
-
-func NewScrollList() ScrollList {
-	return ScrollList{highlit: -1}
-}
-
-func (l *ScrollList) Draw(x, y, w, h int, focussed bool) {
-	// TODO: actually implement scrolling
-	if w < 0 || h < 0 {
-		return
-	}
-	for i := 0; i < h; i++ {
-		if i == len(l.items) {
-			break
-		}
-		fgcolor, bgcolor := tb.ColorWhite, tb.ColorDefault
-		if i == l.highlit {
-			fgcolor = tb.ColorBlue
-		}
-		if i == l.selected { // Use selected colours
-			bgcolor = tb.ColorBlack
-			if focussed {
-				fgcolor = tb.ColorYellow
-			}
-		}
-		for ix := x; ix < x+w; ix++ {
-			tb.SetCell(ix, y+i, ' ', fgcolor, bgcolor)
-		}
-		ui.Printlim(x, y+i, fgcolor, bgcolor, l.items[i].name, w)
-	}
-}
-
-func (l *ScrollList) SelectDown() {
-	if l.selected < len(l.items)-1 {
-		l.selected++
-	}
-}
-
-func (l *ScrollList) SelectUp() {
-	if l.selected > 0 {
-		l.selected--
-	}
-}
-
 // A status message and Termbox color attribute. For display in the top right
 type StatusMsg struct {
 	Msg    string
