@@ -113,16 +113,16 @@ func (s *SpotScreenPlaylists) HandleTBEvent(ev tb.Event) {
 				s.sp.cmdline.status = err.Error()
 			} else {
 				playlistcont.Wait()
-				if playlistcont.PlaylistType(s.playlistsSL.items[s.playlistsSL.selected].data) == sp.PlaylistTypePlaylist {
-					playlist := playlistcont.Playlist(s.playlistsSL.items[s.playlistsSL.selected].data)
+				if playlistcont.PlaylistType(s.playlistsSL.Items[s.playlistsSL.Selected].Data) == sp.PlaylistTypePlaylist {
+					playlist := playlistcont.Playlist(s.playlistsSL.Items[s.playlistsSL.Selected].Data)
 					playlist.Wait()
-					if s.tracksSL.selected < playlist.Tracks() {
-						track := playlist.Track(s.tracksSL.selected).Track()
+					if s.tracksSL.Selected < playlist.Tracks() {
+						track := playlist.Track(s.tracksSL.Selected).Track()
 						track.Wait()
 						s.sp.Player.Load(track)
 						s.sp.Player.PlayPause()
-						s.tracksSL.highlit = s.tracksSL.selected
-						s.playlistsSL.highlit = s.playlistsSL.selected
+						s.tracksSL.Highlit = s.tracksSL.Selected
+						s.playlistsSL.Highlit = s.playlistsSL.Selected
 					}
 				}
 			}
