@@ -31,52 +31,62 @@ func (SpotScreenAbout) HandleTBEvent(tb.Event) {
 }
 
 type SpotScreenPlaylists struct {
-	playlists      ScrollList
-	tracks         ScrollList
+	playlists      *sp.PlaylistContainer
+	tracksSL       ScrollList
+	playlistsSL    ScrollList
 	tracksfocussed bool // if false, playlist list is focussed
 	sp             *spot
 }
 
+// TODO: some form of asynchronous loading that doesn't block the main thread
+// When I tested this (on a slowish connection) there were significant pauses where
+// (I assume) the tracks were loading in a playlist.
+func NewSpotScreenPlaylists() SpotScreenPlaylists {
+	return SpotScreenPlaylists{
+		playlistsSL: NewScrollList(),
+		tracksSL:    NewScrollList(),
+	}
+}
+
 func (s *SpotScreenPlaylists) Draw(x, y, w, h int) {
+	var err error
+	s.playlists, err = s.sp.session.Playlists()
+	if err == nil {
+		s.playlists.Wait()
+	}
 	var playlistlist, tracklist []ListItem
-	if s.sp.loggedin {
-		playlistcont, err := s.sp.session.Playlists()
-		if err != nil {
-			s.sp.cmdline.status = err.Error()
-		} else {
-			playlistcont.Wait()
-			indent := 0
-			for i := 0; i < playlistcont.Playlists(); i++ {
-				// This is a little fiddly, we have to deal with playlist
-				// folders as well as regular playlists
-				switch playlistcont.PlaylistType(i) {
-				case sp.PlaylistTypePlaylist:
-					playlistlist = append(playlistlist, ListItem{strings.Repeat(" ", indent) + playlistcont.Playlist(i).Name(), i})
-				case sp.PlaylistTypeStartFolder:
-					folder, _ := playlistcont.Folder(i)
-					playlistlist = append(playlistlist, ListItem{strings.Repeat(" ", indent) + folder.Name(), i})
-					indent++
-				case sp.PlaylistTypeEndFolder:
-					indent--
-				}
-			}
-			s.playlists.items = playlistlist
-			switch playlistcont.PlaylistType(s.playlists.items[s.playlists.selected].data) {
-			case sp.PlaylistTypePlaylist:
-				playlist := playlistcont.Playlist(s.playlists.items[s.playlists.selected].data)
-				playlist.Wait()
-				for i := 0; i < playlist.Tracks(); i++ {
-					tracklist = append(tracklist, ListItem{playlist.Track(i).Track().Name(), i})
-				}
-				s.tracks.items = tracklist
-			default:
-				s.tracks.items = nil
-			}
+	indent := 0
+	for i := 0; i < s.playlists.Playlists(); i++ {
+		// This is a little fiddly, we have to deal with playlist
+		// folders as well as regular playlists
+		switch s.playlists.PlaylistType(i) {
+		case sp.PlaylistTypePlaylist:
+			playlistlist = append(playlistlist, ListItem{strings.Repeat(" ", indent) + s.playlists.Playlist(i).Name(), i})
+		case sp.PlaylistTypeStartFolder:
+			folder, _ := s.playlists.Folder(i)
+			playlistlist = append(playlistlist, ListItem{strings.Repeat(" ", indent) + folder.Name(), i})
+			indent++
+		case sp.PlaylistTypeEndFolder:
+			indent--
 		}
 	}
-	s.playlists.Draw(x, y, 30, h, !s.tracksfocussed)
+	s.playlistsSL.items = playlistlist
+	switch s.playlists.PlaylistType(s.playlistsSL.items[s.playlistsSL.selected].data) {
+	case sp.PlaylistTypePlaylist:
+		playlist := s.playlists.Playlist(s.playlistsSL.items[s.playlistsSL.selected].data)
+		playlist.Wait()
+		for i := 0; i < playlist.Tracks(); i++ {
+			track := playlist.Track(i).Track()
+			track.Wait()
+			tracklist = append(tracklist, ListItem{track.Name(), i})
+		}
+		s.tracksSL.items = tracklist
+	default:
+		s.tracksSL.items = nil
+	}
+	s.playlistsSL.Draw(x, y, 30, h, !s.tracksfocussed)
 	ui.Drawbox(x+30, y, 1, h, "") // Dividing line
-	s.tracks.Draw(x+31, y, w-31, h, s.tracksfocussed)
+	s.tracksSL.Draw(x+31, y, w-31, h, s.tracksfocussed)
 }
 
 func (s *SpotScreenPlaylists) HandleTBEvent(ev tb.Event) {
@@ -86,15 +96,15 @@ func (s *SpotScreenPlaylists) HandleTBEvent(ev tb.Event) {
 		s.tracksfocussed = !s.tracksfocussed
 	case tb.KeyArrowUp:
 		if s.tracksfocussed {
-			s.tracks.SelectUp()
+			s.tracksSL.SelectUp()
 		} else {
-			s.playlists.SelectUp()
+			s.playlistsSL.SelectUp()
 		}
 	case tb.KeyArrowDown:
 		if s.tracksfocussed {
-			s.tracks.SelectDown()
+			s.tracksSL.SelectDown()
 		} else {
-			s.playlists.SelectDown()
+			s.playlistsSL.SelectDown()
 		}
 	case tb.KeyEnter:
 		if s.tracksfocussed {
@@ -103,14 +113,16 @@ func (s *SpotScreenPlaylists) HandleTBEvent(ev tb.Event) {
 				s.sp.cmdline.status = err.Error()
 			} else {
 				playlistcont.Wait()
-				if playlistcont.PlaylistType(s.playlists.items[s.playlists.selected].data) == sp.PlaylistTypePlaylist {
-					playlist := playlistcont.Playlist(s.playlists.items[s.playlists.selected].data)
+				if playlistcont.PlaylistType(s.playlistsSL.items[s.playlistsSL.selected].data) == sp.PlaylistTypePlaylist {
+					playlist := playlistcont.Playlist(s.playlistsSL.items[s.playlistsSL.selected].data)
 					playlist.Wait()
-					if s.tracks.selected < playlist.Tracks() {
-						track := playlist.Track(s.tracks.selected).Track()
+					if s.tracksSL.selected < playlist.Tracks() {
+						track := playlist.Track(s.tracksSL.selected).Track()
 						track.Wait()
 						s.sp.Player.Load(track)
 						s.sp.Player.PlayPause()
+						s.tracksSL.highlit = s.tracksSL.selected
+						s.playlistsSL.highlit = s.playlistsSL.selected
 					}
 				}
 			}

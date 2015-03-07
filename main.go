@@ -67,21 +67,30 @@ type ListItem struct {
 type ScrollList struct {
 	items    []ListItem
 	selected int
+	highlit  int
+}
+
+func NewScrollList() ScrollList {
+	return ScrollList{highlit: -1}
 }
 
 func (l *ScrollList) Draw(x, y, w, h int, focussed bool) {
 	// TODO: actually implement scrolling
+	if w < 0 || h < 0 {
+		return
+	}
 	for i := 0; i < h; i++ {
 		if i == len(l.items) {
 			break
 		}
 		fgcolor, bgcolor := tb.ColorWhite, tb.ColorDefault
+		if i == l.highlit {
+			fgcolor = tb.ColorBlue
+		}
 		if i == l.selected { // Use selected colours
 			bgcolor = tb.ColorBlack
 			if focussed {
 				fgcolor = tb.ColorYellow
-			} else {
-				fgcolor = tb.ColorRed
 			}
 		}
 		for ix := x; ix < x+w; ix++ {
@@ -243,7 +252,7 @@ type spot struct {
 
 func SpotInit(logger *log.Logger, session *sp.Session, aw *AudioWriter) (sp spot) {
 	a := SpotScreenAbout{}
-	p := SpotScreenPlaylists{}
+	p := NewSpotScreenPlaylists()
 	sp = spot{
 		session:       session,
 		logger:        logger,
