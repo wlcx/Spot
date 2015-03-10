@@ -4,11 +4,12 @@ import (
 	"github.com/nsf/termbox-go"
 )
 
-// ListItem is an item in a ScrollList's list. Name is shown in the list, Data is
-// for an additional integer value
+// ListItem is an item in a ScrollList's list. TextL and TextR are displayed in the list,
+// aligned to the left and right respectively, and Data is an optional integer
 type ListItem struct {
-	Name string
-	Data int
+	TextL string
+	TextR string
+	Data  int
 }
 
 // ScrollList is a scrollable list of items.
@@ -45,8 +46,9 @@ func (l *ScrollList) Draw(x, y, w, h int, focussed bool) {
 				fgcolor = termbox.ColorYellow
 			}
 		}
-		Printlim(x, y+i, fgcolor, bgcolor, l.Items[i].Name, w)
 		Drawbar(x, y+i, w, bgcolor)
+		Printlim(x, y+i, fgcolor, bgcolor, l.Items[i].TextL, w)
+		Printr(x+w, y+i, fgcolor, bgcolor, l.Items[i].TextR)
 	}
 }
 
@@ -62,6 +64,13 @@ func (l *ScrollList) SelectUp() {
 	if l.Selected > 0 {
 		l.Selected--
 	}
+}
+
+// Clear clears a ScrollList and resets selection/highlit
+func (l *ScrollList) Clear() {
+	l.Items = nil
+	l.Selected = 0
+	l.Highlit = -1
 }
 
 // Draw a box with top left corner at x,y height/width h,w and (optional) title title.

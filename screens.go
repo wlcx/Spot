@@ -61,10 +61,10 @@ func (s *SpotScreenPlaylists) Draw(x, y, w, h int) {
 		// folders as well as regular playlists
 		switch s.playlists.PlaylistType(i) {
 		case sp.PlaylistTypePlaylist:
-			playlistlist = append(playlistlist, ui.ListItem{strings.Repeat(" ", indent) + s.playlists.Playlist(i).Name(), i})
+			playlistlist = append(playlistlist, ui.ListItem{strings.Repeat(" ", indent) + s.playlists.Playlist(i).Name(), "", i})
 		case sp.PlaylistTypeStartFolder:
 			folder, _ := s.playlists.Folder(i)
-			playlistlist = append(playlistlist, ui.ListItem{strings.Repeat(" ", indent) + folder.Name(), i})
+			playlistlist = append(playlistlist, ui.ListItem{strings.Repeat(" ", indent) + folder.Name(), "", i})
 			indent++
 		case sp.PlaylistTypeEndFolder:
 			indent--
@@ -78,7 +78,7 @@ func (s *SpotScreenPlaylists) Draw(x, y, w, h int) {
 		for i := 0; i < playlist.Tracks(); i++ {
 			track := playlist.Track(i).Track()
 			track.Wait()
-			tracklist = append(tracklist, ui.ListItem{track.Name(), i})
+			tracklist = append(tracklist, ui.ListItem{track.Name(), "", i})
 		}
 		s.tracksSL.Items = tracklist
 	default:
