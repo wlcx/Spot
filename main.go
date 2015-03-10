@@ -233,7 +233,7 @@ func (g *spot) redraw() {
 	tb.Clear(tb.ColorWhite, tb.ColorDefault)
 	termw, termh := tb.Size()
 	// Draw top bar
-	ui.Drawbar(0, tb.ColorBlack)
+	ui.Drawbar(0, 0, termw, tb.ColorBlack)
 	ui.Print(0, 0, tb.AttrBold, tb.ColorBlack, "Spot "+version)
 
 	// Get the StatusMsg (message and color) for current spotify session state
@@ -245,7 +245,7 @@ func (g *spot) redraw() {
 	g.screens[g.currentscreen].Draw(0, 1, termw, termh-3)
 
 	// Draw nowplaying
-	ui.Drawbar(termh-2, tb.ColorBlack)
+	ui.Drawbar(0, termh-2, termw, tb.ColorBlack)
 	var nowplayingstr string
 	switch g.Player.playstate {
 	case Ejected:

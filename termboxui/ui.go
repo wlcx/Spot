@@ -45,10 +45,8 @@ func (l *ScrollList) Draw(x, y, w, h int, focussed bool) {
 				fgcolor = termbox.ColorYellow
 			}
 		}
-		for ix := x; ix < x+w; ix++ {
-			termbox.SetCell(ix, y+i, ' ', fgcolor, bgcolor)
-		}
 		Printlim(x, y+i, fgcolor, bgcolor, l.Items[i].Name, w)
+		Drawbar(x, y+i, w, bgcolor)
 	}
 }
 
@@ -89,12 +87,10 @@ func Drawbox(x, y, w, h int, title string) {
 	}
 }
 
-// Draw a bar across row row of the screen with the background color bg
-func Drawbar(row int, bg termbox.Attribute) {
-	x, y := termbox.Size()
-	if row < y {
-		for i := 0; i < x; i++ {
-			termbox.SetCell(i, row, ' ', termbox.ColorWhite, bg)
-		}
+// Draw a bar across w columns of row y of the screen starting at col x
+// with the background color bg
+func Drawbar(x, y, w int, bg termbox.Attribute) {
+	for i := x; i < x+w; i++ {
+		termbox.SetCell(i, y, ' ', termbox.ColorWhite, bg)
 	}
 }
