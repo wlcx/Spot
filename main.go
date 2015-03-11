@@ -180,7 +180,7 @@ func (p *SpotPlayer) Seek(pos time.Duration) {
 	if pos < 0 {
 		pos = 0
 	}
-	if p.elapsed+pos > p.track.Duration() {
+	if pos > p.track.Duration() {
 		pos = p.track.Duration()
 	}
 	p.spplayer.Seek(pos)
