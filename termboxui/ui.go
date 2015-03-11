@@ -17,6 +17,7 @@ type ScrollList struct {
 	Items    []ListItem
 	Selected int
 	Highlit  int
+	offset   int
 }
 
 // NewScrollList returns, you guessed it, a new ScrollList instance
@@ -32,23 +33,30 @@ func (l *ScrollList) Draw(x, y, w, h int, focussed bool) {
 	if w < 0 || h < 0 {
 		return
 	}
-	for i := 0; i < h; i++ {
-		if i == len(l.Items) {
+	switch {
+	case l.Selected >= (h+l.offset)-1 && l.offset+h < len(l.Items):
+		l.offset++
+	case l.Selected <= l.offset && l.offset > 0:
+		l.offset--
+	}
+	displayed := l.Items[l.offset:]
+	for i, tr := range displayed {
+		if i == h {
 			break
 		}
 		fgcolor, bgcolor := termbox.ColorWhite, termbox.ColorDefault
-		if i == l.Highlit {
+		if i+l.offset == l.Highlit {
 			fgcolor = termbox.ColorBlue
 		}
-		if i == l.Selected { // Use selected colours
+		if i+l.offset == l.Selected { // Use selected colours
 			bgcolor = termbox.ColorBlack
 			if focussed {
 				fgcolor = termbox.ColorYellow
 			}
 		}
 		Drawbar(x, y+i, w, bgcolor)
-		Printlim(x, y+i, fgcolor, bgcolor, l.Items[i].TextL, w)
-		Printr(x+w, y+i, fgcolor, bgcolor, l.Items[i].TextR)
+		Printlim(x, y+i, fgcolor, bgcolor, tr.TextL, w)
+		Printr(x+w, y+i, fgcolor, bgcolor, tr.TextR)
 	}
 }
 
@@ -71,6 +79,7 @@ func (l *ScrollList) Clear() {
 	l.Items = nil
 	l.Selected = 0
 	l.Highlit = -1
+	l.offset = 0
 }
 
 // Draw a box with top left corner at x,y height/width h,w and (optional) title title.
