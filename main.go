@@ -3,12 +3,14 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/docopt/docopt-go"
+	"github.com/hashicorp/mdns"
 	tb "github.com/nsf/termbox-go"
 	sp "github.com/op/go-libspotify/spotify"
 	ui "github.com/wlcx/spot/termboxui"
@@ -496,4 +498,20 @@ func main() {
 	s := SpotInit(nil, session, aw)
 	s.redraw()
 	s.run()
+
+	host, err := os.Hostname()
+	if err != nil {
+		log.Fatal(err)
+	}
+	info := []string{"Spot roaming playback"}
+	service, err := mdns.NewMDNSService(host, "_spotplay._tcp", "", "", 8000, nil, info)
+	if err != nil {
+		log.Fatal(err)
+	}
+	server, err := mdns.NewServer(&mdns.Config{Zone: service})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer server.Shutdown()
+
 }
