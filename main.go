@@ -159,9 +159,9 @@ func (p *SpotPlayer) Eject() {
 }
 
 func (p *SpotPlayer) NowPlaying() map[string]string {
-	var artists string
-	for i := 0; i < p.track.Artists(); i++ {
-		artists += p.track.Artist(i).Name() + " " //TODO: make this nicer
+	artists := p.track.Artist(0).Name()
+	for i := 1; i < p.track.Artists(); i++ {
+		artists += ", " + p.track.Artist(i).Name()
 	}
 	return map[string]string{
 		"artist":   artists,
