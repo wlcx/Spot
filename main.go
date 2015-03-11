@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"log"
+	"os/user"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -484,10 +486,14 @@ func main() {
 	AudioInit()
 	defer AudioDeinit()
 	aw, _ := NewAudioWriter()
+	usr, err := user.Current()
+	if err != nil {
+		log.Fatal(err)
+	}
 	session, err := sp.NewSession(&sp.Config{
 		ApplicationKey:   appkey,
 		ApplicationName:  "Spot",
-		SettingsLocation: "tmp",
+		SettingsLocation: path.Join(usr.HomeDir, ".cache/spot"),
 		AudioConsumer:    aw,
 	})
 	if err != nil {
