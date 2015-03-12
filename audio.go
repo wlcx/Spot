@@ -141,7 +141,6 @@ func (a *audioDevice) Close() {
 func (w *AudioWriter) AOWriter(driverid int) {
 	defer w.device.Close()
 	defer w.wg.Done()
-	var input audio
 	for {
 		select {
 		case <-w.flush:
@@ -149,11 +148,11 @@ func (w *AudioWriter) AOWriter(driverid int) {
 			w.input = make(chan audio, inputBufferSize)
 		case <-w.quit:
 			return
-		case input = <-w.input:
+		case input := <-w.input:
 			// TODO: refresh the default driverid so we can 'roam' across devices.
 			w.device.Ready(input.format.Channels, input.format.SampleRate, driverid)
 			bytes, err := w.device.dev.Write(input.frames)
-			if err != nil {
+			if err != nil && w.device.dev != nil {
 				// Close the device and hope it can be reopened next time round
 				w.device.Close()
 			} else {
