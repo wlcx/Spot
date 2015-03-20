@@ -192,34 +192,36 @@ func (p *SpotPlayer) Scrub(offset time.Duration) {
 	p.Seek(p.elapsed + offset)
 }
 
-type spot struct {
-	session       *sp.Session
-	logger        *log.Logger
-	cmdline       CmdLine
-	quit          bool
-	mode          Mode
-	currentscreen int
-	screens       []SpotScreen
-	loggedin      bool
-	Player        *SpotPlayer
-	audiowriter   *AudioWriter
+type Spot struct {
+	session         *sp.Session
+	logger          *log.Logger
+	cmdline         CmdLine
+	quit            bool
+	mode            Mode
+	loggedin        bool
+	Player          *SpotPlayer
+	audiowriter     *AudioWriter
+	currentscreen   SpotScreen
+	screenabout     *SpotScreenAbout
+	screenplaylists *SpotScreenPlaylists
 }
 
-func SpotInit(logger *log.Logger, session *sp.Session, aw *AudioWriter) (sp spot) {
+func SpotInit(logger *log.Logger, session *sp.Session, aw *AudioWriter) (spot Spot) {
 	a := SpotScreenAbout{}
 	p := NewSpotScreenPlaylists()
-	sp = spot{
-		session:       session,
-		logger:        logger,
-		cmdline:       CmdLine{},
-		quit:          false,
-		mode:          Normal,
-		currentscreen: 0,
-		screens:       []SpotScreen{&a, &p},
-		Player:        NewSpotPlayer(session.Player(), aw),
-		audiowriter:   aw,
+	spot = Spot{
+		session:         session,
+		logger:          logger,
+		cmdline:         CmdLine{},
+		quit:            false,
+		mode:            Normal,
+		Player:          NewSpotPlayer(session.Player(), aw),
+		audiowriter:     aw,
+		currentscreen:   &a,
+		screenabout:     &a,
+		screenplaylists: &p,
+		loggedin:        false,
 	}
-	p.sp = &sp
 	return
 
 }
@@ -231,7 +233,7 @@ var PlayerstateSymbols = map[PlayerState]string{
 }
 
 // (re)Draws the spot UI
-func (g *spot) redraw() {
+func (g *Spot) redraw() {
 	tb.Clear(tb.ColorWhite, tb.ColorDefault)
 	termw, termh := tb.Size()
 	// Draw top bar
@@ -244,7 +246,7 @@ func (g *spot) redraw() {
 	ui.Printr(termw, 0, statusmsg.Colour, tb.ColorBlack, statusmsg.Msg)
 
 	// Draw active screen
-	g.screens[g.currentscreen].Draw(0, 1, termw, termh-3)
+	g.currentscreen.Draw(0, 1, termw, termh-3)
 
 	// Draw nowplaying
 	ui.Drawbar(0, termh-2, termw, tb.ColorBlack)
@@ -263,15 +265,7 @@ func (g *spot) redraw() {
 	tb.Flush()
 }
 
-func (g *spot) ChangeScreen(index int) {
-	if index != 0 && !g.loggedin {
-		g.cmdline.status = "Log in to do that"
-	} else {
-		g.currentscreen = index
-	}
-}
-
-func (g *spot) docommand(cmd string, args []string) string {
+func (g *Spot) docommand(cmd string, args []string) string {
 	switch cmd {
 	case "q", "quit":
 		g.quit = true
@@ -287,7 +281,7 @@ func (g *spot) docommand(cmd string, args []string) string {
 			return "Login Error!"
 		}
 	case "logout":
-		g.currentscreen = 0 // Swap to about screen TODO:less magic numbery
+		g.currentscreen = g.screenabout // Swap to about screen TODO:less magic numbery
 		err := g.session.Logout()
 		if err != nil {
 			return err.Error()
@@ -339,7 +333,7 @@ func (g *spot) docommand(cmd string, args []string) string {
 	return ""
 }
 
-func (g *spot) run() {
+func (g *Spot) run() {
 	eventCh := make(chan tb.Event)
 	wg := new(sync.WaitGroup)
 	go func() {
@@ -375,7 +369,7 @@ func (g *spot) run() {
 							g.cmdline.Push()
 						}
 					} else {
-						g.screens[g.currentscreen].HandleTBEvent(ev)
+						g.currentscreen.HandleTBEvent(ev)
 					}
 				case tb.KeyBackspace, tb.KeyBackspace2:
 					if g.mode == Command {
@@ -392,10 +386,11 @@ func (g *spot) run() {
 				case tb.KeyEsc:
 					if g.mode == Command {
 						g.cmdline.Clear()
+						g.mode = Normal
 					}
 					g.mode = Normal
 				case tb.KeyTab, tb.KeyArrowUp, tb.KeyArrowDown:
-					g.screens[g.currentscreen].HandleTBEvent(ev)
+					g.currentscreen.HandleTBEvent(ev)
 				case tb.KeyArrowLeft:
 					g.Player.Scrub(time.Duration(-10) * time.Second)
 				case tb.KeyArrowRight:
@@ -418,13 +413,23 @@ func (g *spot) run() {
 						case 'v':
 							g.Player.Stop()
 						case '0':
-							g.ChangeScreen(0)
+							g.currentscreen = g.screenabout
 						case '1':
-							g.ChangeScreen(1)
+							if !g.loggedin {
+								g.cmdline.status = "Not logged in"
+								break
+							}
+							playlists, err := g.session.Playlists()
+							if err != nil {
+								g.cmdline.status = err.Error()
+								break
+							}
+							playlists.Wait()
+							g.screenplaylists.SetPlaylists(playlists)
+							g.currentscreen = g.screenplaylists
 						}
 					}
 				}
-
 			case tb.EventResize:
 				g.redraw()
 			}
@@ -473,6 +478,8 @@ Options:
 	return
 }
 
+var spot Spot // Yes, global scope.
+
 func main() {
 	_, err := parseArgs()
 	if err != nil {
@@ -499,7 +506,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	s := SpotInit(nil, session, aw)
-	s.redraw()
-	s.run()
+
+	spot = SpotInit(nil, session, aw)
+	spot.redraw()
+	spot.run()
 }

@@ -31,11 +31,11 @@ func (SpotScreenAbout) HandleTBEvent(tb.Event) {
 }
 
 type SpotScreenPlaylists struct {
-	playlists      *sp.PlaylistContainer
-	tracksSL       ui.ScrollList
-	playlistsSL    ui.ScrollList
-	tracksfocussed bool // if false, playlist list is focussed
-	sp             *spot
+	playlists       *sp.PlaylistContainer
+	tracksSL        *TrackList
+	playlistsSL     ui.ScrollList
+	tracksfocussed  bool // if false, playlist list is focussed
+	playlistchanged bool // flag to trigger load of new playlist
 }
 
 // TODO: some form of asynchronous loading that doesn't block the main thread
@@ -43,18 +43,17 @@ type SpotScreenPlaylists struct {
 // (I assume) the tracks were loading in a playlist.
 func NewSpotScreenPlaylists() SpotScreenPlaylists {
 	return SpotScreenPlaylists{
-		playlistsSL: ui.NewScrollList(),
-		tracksSL:    ui.NewScrollList(),
+		playlistsSL:     ui.NewScrollList(),
+		tracksSL:        NewTrackList(),
+		playlistchanged: true,
 	}
 }
 
 func (s *SpotScreenPlaylists) Draw(x, y, w, h int) {
-	var err error
-	s.playlists, err = s.sp.session.Playlists()
-	if err == nil {
-		s.playlists.Wait()
+	if s.playlists == nil {
+		ui.Printc((x+w)/2, 10, tb.ColorWhite, tb.ColorDefault, "Login to view playlists")
 	}
-	var playlistlist, tracklist []ui.ListItem
+	var playlistlist []ui.ListItem
 	indent := 0
 	for i := 0; i < s.playlists.Playlists(); i++ {
 		// This is a little fiddly, we have to deal with playlist
@@ -71,18 +70,14 @@ func (s *SpotScreenPlaylists) Draw(x, y, w, h int) {
 		}
 	}
 	s.playlistsSL.Items = playlistlist
-	switch s.playlists.PlaylistType(s.playlistsSL.Items[s.playlistsSL.Selected].Data) {
-	case sp.PlaylistTypePlaylist:
-		playlist := s.playlists.Playlist(s.playlistsSL.Items[s.playlistsSL.Selected].Data)
-		playlist.Wait()
-		for i := 0; i < playlist.Tracks(); i++ {
-			track := playlist.Track(i).Track()
-			track.Wait()
-			tracklist = append(tracklist, ui.ListItem{track.Name(), "", i})
+	if s.playlistchanged {
+		switch s.playlists.PlaylistType(s.playlistsSL.Items[s.playlistsSL.Selected].Data) {
+		case sp.PlaylistTypePlaylist:
+			playlist := s.playlists.Playlist(s.playlistsSL.Items[s.playlistsSL.Selected].Data)
+			playlist.Wait()
+			s.tracksSL.SetPlaylist(playlist)
 		}
-		s.tracksSL.Items = tracklist
-	default:
-		s.tracksSL.Items = nil
+		s.playlistchanged = false
 	}
 	s.playlistsSL.Draw(x, y, 30, h, !s.tracksfocussed)
 	ui.Drawbox(x+30, y, 1, h, "") // Dividing line
@@ -99,33 +94,84 @@ func (s *SpotScreenPlaylists) HandleTBEvent(ev tb.Event) {
 			s.tracksSL.SelectUp()
 		} else {
 			s.playlistsSL.SelectUp()
+			s.playlistchanged = true
 		}
 	case tb.KeyArrowDown:
 		if s.tracksfocussed {
 			s.tracksSL.SelectDown()
 		} else {
 			s.playlistsSL.SelectDown()
+			s.playlistchanged = true
 		}
 	case tb.KeyEnter:
 		if s.tracksfocussed {
-			playlistcont, err := s.sp.session.Playlists()
+			playlistcont, err := spot.session.Playlists()
 			if err != nil {
-				s.sp.cmdline.status = err.Error()
+				spot.cmdline.status = err.Error()
 			} else {
 				playlistcont.Wait()
 				if playlistcont.PlaylistType(s.playlistsSL.Items[s.playlistsSL.Selected].Data) == sp.PlaylistTypePlaylist {
 					playlist := playlistcont.Playlist(s.playlistsSL.Items[s.playlistsSL.Selected].Data)
 					playlist.Wait()
-					if s.tracksSL.Selected < playlist.Tracks() {
-						track := playlist.Track(s.tracksSL.Selected).Track()
+					if s.tracksSL.sl.Selected < playlist.Tracks() {
+						track := playlist.Track(s.tracksSL.sl.Selected).Track()
 						track.Wait()
-						s.sp.Player.Load(track)
-						s.sp.Player.PlayPause()
-						s.tracksSL.Highlit = s.tracksSL.Selected
+						spot.Player.Load(track)
+						spot.Player.PlayPause()
+						s.tracksSL.sl.Highlit = s.tracksSL.sl.Selected
 						s.playlistsSL.Highlit = s.playlistsSL.Selected
 					}
 				}
 			}
 		}
 	}
+}
+
+func (s *SpotScreenPlaylists) SetPlaylists(playlists *sp.PlaylistContainer) {
+	s.playlists = playlists
+}
+
+type TrackList struct {
+	sl     ui.ScrollList
+	tracks []*sp.Track
+}
+
+func NewTrackList() *TrackList {
+	return &TrackList{sl: ui.NewScrollList()}
+}
+
+func (t *TrackList) AddTrack(track *sp.Track) {
+	t.sl.Items = append(t.sl.Items, ui.ListItem{track.Name(), track.Artist(0).Name(), 0})
+	t.tracks = append(t.tracks, track)
+}
+
+// SetPlaylist clears the tracklist and populates it with the contents of playlist
+func (t *TrackList) SetPlaylist(playlist *sp.Playlist) {
+	t.Clear()
+	for i := 0; i < playlist.Tracks(); i++ {
+		track := playlist.Track(i).Track()
+		track.Wait()
+		t.AddTrack(track)
+	}
+}
+
+func (t *TrackList) Clear() {
+	t.sl.Clear()
+	t.tracks = nil
+}
+
+func (t *TrackList) Draw(x, y, w, h int, focussed bool) {
+	t.sl.Draw(x, y, w, h, focussed)
+}
+
+func (t *TrackList) SelectUp() {
+	t.sl.SelectUp()
+}
+
+func (t *TrackList) SelectDown() {
+	t.sl.SelectDown()
+}
+
+func (t *TrackList) GetSelected() *sp.Track {
+	return t.tracks[t.sl.Selected]
 }
