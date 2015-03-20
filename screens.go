@@ -60,10 +60,10 @@ func (s *SpotScreenPlaylists) Draw(x, y, w, h int) {
 		// folders as well as regular playlists
 		switch s.playlists.PlaylistType(i) {
 		case sp.PlaylistTypePlaylist:
-			playlistlist = append(playlistlist, ui.ListItem{strings.Repeat(" ", indent) + s.playlists.Playlist(i).Name(), "", i})
+			playlistlist = append(playlistlist, ui.ListItem{strings.Repeat(" ", indent) + s.playlists.Playlist(i).Name(), "", i, false})
 		case sp.PlaylistTypeStartFolder:
 			folder, _ := s.playlists.Folder(i)
-			playlistlist = append(playlistlist, ui.ListItem{strings.Repeat(" ", indent) + folder.Name(), "", i})
+			playlistlist = append(playlistlist, ui.ListItem{strings.Repeat(" ", indent) + folder.Name(), "", i, false})
 			indent++
 		case sp.PlaylistTypeEndFolder:
 			indent--
@@ -141,7 +141,11 @@ func NewTrackList() *TrackList {
 }
 
 func (t *TrackList) AddTrack(track *sp.Track) {
-	t.sl.Items = append(t.sl.Items, ui.ListItem{track.Name(), track.Artist(0).Name(), 0})
+	disabled := false
+	if track.Availability() != sp.TrackAvailabilityAvailable { // Track not playable
+		disabled = true
+	}
+	t.sl.Items = append(t.sl.Items, ui.ListItem{track.Name(), track.Artist(0).Name(), 0, disabled})
 	t.tracks = append(t.tracks, track)
 }
 

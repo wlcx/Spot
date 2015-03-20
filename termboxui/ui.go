@@ -7,9 +7,10 @@ import (
 // ListItem is an item in a ScrollList's list. TextL and TextR are displayed in the list,
 // aligned to the left and right respectively, and Data is an optional integer
 type ListItem struct {
-	TextL string
-	TextR string
-	Data  int
+	TextL    string
+	TextR    string
+	Data     int
+	Disabled bool
 }
 
 // ScrollList is a scrollable list of items.
@@ -29,29 +30,36 @@ func NewScrollList() ScrollList {
 // left corner (x and y) and a width and height (w and h), as well as a focussed bool which
 // Changes the color scheme to indicate that the list is focussed on screen
 func (l *ScrollList) Draw(x, y, w, h int, focussed bool) {
-	// TODO: actually implement scrolling
+	// The no. of lines kept in view above/below selection when scrolling up/down
+	scrollpadding := 2
 	if w < 0 || h < 0 {
 		return
 	}
+	//Recalculate offset to keep selection in view
 	switch {
-	case l.Selected >= (h+l.offset)-1 && l.offset+h < len(l.Items):
-		l.offset++
-	case l.Selected <= l.offset && l.offset > 0:
-		l.offset--
+	case l.Selected >= (h+l.offset)-scrollpadding-1 && l.offset+h < len(l.Items):
+		l.offset += (l.Selected - ((h + l.offset) - scrollpadding - 1))
+	case l.Selected <= l.offset+scrollpadding && l.offset > 0:
+		l.offset -= (l.offset - l.Selected) + scrollpadding
 	}
 	displayed := l.Items[l.offset:]
 	for i, tr := range displayed {
 		if i == h {
 			break
 		}
+		index := i + l.offset
 		fgcolor, bgcolor := termbox.ColorWhite, termbox.ColorDefault
-		if i+l.offset == l.Highlit {
-			fgcolor = termbox.ColorBlue
-		}
-		if i+l.offset == l.Selected { // Use selected colours
-			bgcolor = termbox.ColorBlack
-			if focussed {
-				fgcolor = termbox.ColorYellow
+		if tr.Disabled {
+			fgcolor = termbox.ColorDefault
+		} else {
+			if index == l.Selected {
+				bgcolor = termbox.ColorBlack
+				if focussed {
+					fgcolor = termbox.ColorYellow
+				}
+			}
+			if index == l.Highlit {
+				fgcolor = termbox.ColorBlue
 			}
 		}
 		Drawbar(x, y+i, w, bgcolor)
@@ -60,17 +68,30 @@ func (l *ScrollList) Draw(x, y, w, h int, focussed bool) {
 	}
 }
 
-// SelectDown moves the item selection down one
+// SelectDown moves the item selection down one, skipping any disabled items
 func (l *ScrollList) SelectDown() {
-	if l.Selected < len(l.Items)-1 {
+	for {
+		if l.Selected >= len(l.Items)-1 { // Already at (or past!) the bottom
+			l.Selected = len(l.Items) - 1 // Reset it just in case (eg list items removed)
+			break
+		}
 		l.Selected++
+		if !l.Items[l.Selected].Disabled { // If current item is disabled we loop again
+			break
+		}
 	}
 }
 
-// SelectUp moves the item selection up one
+// SelectUp moves the item selection up one, skipping any disabled items
 func (l *ScrollList) SelectUp() {
-	if l.Selected > 0 {
+	for {
+		if l.Selected == 0 { // Already at the top
+			break
+		}
 		l.Selected--
+		if !l.Items[l.Selected].Disabled { // If current item is disabled we loop again
+			break
+		}
 	}
 }
 
