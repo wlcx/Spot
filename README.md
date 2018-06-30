@@ -1,4 +1,6 @@
 # Spot
+**NOTICE: Spot is not actively developed and remains little more than a proof of concept!**
+
 Spot is a minimal, lightweight, cross-platform, standalone, console Spotify client, written in Go. It is *really* not ready for primetime unless primetime involves not being feature complete and crashing.
 ## Installing
 I plan to issue releases for different platforms. Until then, you'll have to compile yourself :poop:
